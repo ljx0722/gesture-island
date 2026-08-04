@@ -7,19 +7,19 @@
   <title>粒子交互AI教学 | 长晴科技</title>
   <link rel="stylesheet" href="src/styles.css" />
   <style>
-    #error-overlay {
-      position: fixed; top: 40px; left: 50%; transform: translateX(-50%); z-index: 500;
-      max-width: 600px; width: 90%;
-      padding: 16px; border-radius: 8px;
-      background: rgba(200,40,40,0.9); color: #fff;
-      font-size: 13px; font-family: monospace;
-      white-space: pre-wrap; word-break: break-all;
-      display: none;
+    #fatal-error {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: #c82020; color:#fff; padding: 20px 30px; border-radius: 8px;
+      font-family: "PingFang SC","Microsoft YaHei",sans-serif; font-size:14px;
+      max-width:90%; text-align:center; z-index:9999;
     }
+    #fatal-error b { display:block; margin-bottom:6px; font-size:16px; }
   </style>
 </head>
 <body>
-  <div id="app">
+  <div id="fatal-error"><b>加载失败</b><span id="fatal-msg"></span></div>
+
+  <div id="app" style="display:none">
     <div id="brand-bar">
       <span class="brand-logo">&#9670;</span>
       <span class="brand-divider"></span>
@@ -37,11 +37,10 @@
       <canvas id="camera-canvas" class="module-canvas hidden"></canvas>
       <video id="camera-video" playsinline autoplay muted style="display:none"></video>
     </div>
-    <div id="error-overlay"></div>
     <div id="status-toast" class="toast hidden"></div>
     <div id="loading-overlay" class="loading-overlay">
       <div class="loading-spinner"></div>
-      <p id="loading-text">正在加载 Three.js 引擎...</p>
+      <p id="loading-text">正在加载 Three.js...</p>
     </div>
     <div id="bottom-bar">
       <div id="bar-left">
@@ -67,50 +66,76 @@
     <div id="param-panel" class="param-panel hidden"></div>
   </div>
 
-  <script type="module">
-  // Capture errors early
-  window.onerror = function(msg, src, line, col, err) {
-    var el = document.getElementById('error-overlay');
-    el.style.display = 'block';
-    el.textContent = 'ERROR: ' + msg + '\n  at ' + src + ':' + line;
-    document.getElementById('loading-overlay').classList.add('hidden');
-  };
+  <!-- Step 1: Load THREE.js (classic script, sets window.THREE) -->
+  <script>
+  function fatal(msg) {
+    document.getElementById('fatal-msg').textContent = msg;
+    document.getElementById('fatal-error').style.display = 'block';
+    document.getElementById('loading-overlay').style.display = 'none';
+  }
 
-  // Dynamic import with fallback URLs
-  async function loadThree() {
-    const urls = [
-      'https://unpkg.com/three@0.160.0/build/three.module.js',
-      'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
-      'https://esm.sh/three@0.160.0',
-    ];
-    for (const url of urls) {
+  function loadScript(url) {
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = function() { reject(new Error('script load failed: ' + url)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  var CDN = 'https://cdn.jsdelivr.net/npm/three@0.157.0';
+  var FALLBACK = 'https://unpkg.com/three@0.157.0';
+
+  async function boot() {
+    document.getElementById('loading-text').textContent = '正在加载 Three.js (CDN)...';
+
+    // Load THREE.js with fallback
+    try {
+      await loadScript(CDN + '/build/three.min.js');
+    } catch(e) {
       try {
-        return await import(url);
-      } catch(e) {
-        console.warn('Failed to load THREE from', url, e.message);
+        document.getElementById('loading-text').textContent = '主CDN不可用，尝试备用CDN...';
+        await loadScript(FALLBACK + '/build/three.min.js');
+      } catch(e2) {
+        fatal('无法从网络加载 Three.js 库。\n请检查网络连接，或联系技术支持。\n\n(' + e.message + ')');
+        return;
       }
     }
-    throw new Error('无法加载 Three.js，请检查网络连接');
+
+    // Load addons
+    document.getElementById('loading-text').textContent = '正在加载插件...';
+    try {
+      await Promise.all([
+        loadScript(CDN + '/examples/jsm/controls/OrbitControls.js'),
+        loadScript(CDN + '/examples/jsm/loaders/GLTFLoader.js'),
+      ]);
+    } catch(e) {
+      console.warn('Addon load failed (non-critical):', e.message);
+    }
+
+    // Verify THREE is loaded
+    if (!window.THREE || !window.THREE.Scene) {
+      fatal('Three.js 加载不完整，请刷新页面重试。');
+      return;
+    }
+
+    console.log('THREE r' + (window.THREE.REVISION || '?') + ' loaded');
+
+    // Step 2: Load app.js
+    document.getElementById('loading-text').textContent = '正在初始化应用...';
+    try {
+      var appScript = document.createElement('script');
+      appScript.type = 'module';
+      appScript.src = 'src/app.js';
+      document.head.appendChild(appScript);
+    } catch(e) {
+      fatal('应用加载失败: ' + (e.message || '未知错误'));
+      return;
+    }
   }
 
-  // Make THREE globally available for all modules
-  window.THREE = await loadThree();
-  console.log('Three.js loaded:', window.THREE.REVISION);
-
-  // Load addons
-  const addonBase = 'https://unpkg.com/three@0.160.0/examples/jsm/';
-  try {
-    window.THREE.OrbitControls = (await import(addonBase + 'controls/OrbitControls.js')).OrbitControls;
-    window.THREE.GLTFLoader = (await import(addonBase + 'loaders/GLTFLoader.js')).GLTFLoader;
-    console.log('Addons loaded');
-  } catch(e) {
-    console.warn('Addon load warning:', e.message);
-  }
-
-  // Now load the app
-  document.getElementById('loading-text').textContent = '正在初始化应用...';
-  await import('./src/app.js');
-  console.log('App module loaded');
+  boot();
   </script>
 </body>
 </html>
