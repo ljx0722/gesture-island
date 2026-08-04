@@ -82,6 +82,28 @@ function _startRenderLoop() {
   animationId = requestAnimationFrame(loop)
 }
 
+// ── Gesture → Module Mapping ──
+let lastGestureType = 'none'
+function _handleGesture(frameData) {
+  if (demoActive) return
+
+  const openness = frameData.openness
+  const gesture = frameData.gestureType
+
+  // Status display
+  if (gesture !== lastGestureType) {
+    lastGestureType = gesture
+    const labels = { open: '张开手掌', fist: '握拳', pinch: '捏合', point: '指向', none: '待机' }
+    statusDisplay.setHandStatus(frameData.handCount, labels[gesture] || '')
+  }
+
+  if (currentModule === 'particles' && particleModule) {
+    particleModule.onGestureFrame(frameData)
+  } else if (currentModule === 'paintings' && paintingModule) {
+    paintingModule.onGestureFrame(frameData)
+  }
+}
+
 // ── Module Switching ──
 async function switchModule(moduleId) {
   if (currentModule === moduleId) return
@@ -228,6 +250,7 @@ async function _startCamera() {
     // Subscribe pipeline to filter module
     pipeline.subscribe((frameData) => {
       statusDisplay.setHandStatus(frameData.handCount)
+      _handleGesture(frameData)
       if (currentModule === 'filters' && filterModule && !demoActive) {
         filterModule.render(frameData, 0.016)
       }

@@ -39,12 +39,12 @@ export class StatusDisplay {
     this.loadingTextEl.textContent = `${text} (${pct}%)`
   }
 
-  setHandStatus(count) {
+  setHandStatus(count, gestureLabel = '') {
     this.statusDot.className = count >= 2 ? 'status-dot active'
       : count === 1 ? 'status-dot warning'
       : 'status-dot offline'
 
-    if (count >= 2) this.statusText.textContent = '双手已检测'
+    if (count >= 2) this.statusText.textContent = gestureLabel ? `双手已检测 · ${gestureLabel}` : '双手已检测'
     else if (count === 1) this.statusText.textContent = '请将双手放入画面'
     else this.statusText.textContent = '未检测到手部'
   }

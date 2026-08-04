@@ -1,0 +1,11 @@
+{
+  "name": "长晴手势实验岛",
+  "short_name": "手势实验岛",
+  "description": "长晴人工智能教育科技有限公司研发的机器视觉与实时手势交互学习实验室",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090a0d",
+  "theme_color": "#090a0d",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

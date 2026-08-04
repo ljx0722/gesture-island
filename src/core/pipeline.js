@@ -1,6 +1,8 @@
-// pipeline.js — 共享编排器：协调摄像头 + 手部追踪 + 平滑 + 遮罩 + 渲染
+// pipeline.js — 共享编排器：摄像头 + 手部追踪 + 手势引擎 + 遮罩 + 渲染
 import { CameraManager } from './camera.js'
 import { createHandTracker } from '../tracking/handTracker.js'
+import { HandIdentityTracker } from '../tracking/handIdentity.js'
+import { GestureEngine } from '../gestures/gestureEngine.js'
 import { sortLeftRight, getHandCount } from '../tracking/handSorter.js'
 import { smoothFrame } from './smoothing.js'
 
@@ -8,6 +10,8 @@ export class Pipeline {
   constructor(config = {}) {
     this.camera = new CameraManager()
     this.handTracker = null
+    this.identityTracker = new HandIdentityTracker()
+    this.gestureEngine = new GestureEngine()
     this.maskSegmenter = null
     this.smoothingAlpha = config.smoothingAlpha ?? 0.35
     this.handInterval = config.handInterval ?? (1000 / 30)
@@ -27,6 +31,10 @@ export class Pipeline {
     this.smoothingAlpha = alpha
   }
 
+  setGestureConfig(config) {
+    this.gestureEngine.setConfig(config)
+  }
+
   setNeedsMask(needs) {
     this._needsMask = needs
   }
@@ -41,6 +49,7 @@ export class Pipeline {
       onProgress: options.onProgress,
       wasmPath: options.wasmPath || '/mediapipe',
     })
+    this.handTracker.setIdentityTracker(this.identityTracker)
   }
 
   async initMaskSegmenter(options = {}) {
@@ -61,6 +70,11 @@ export class Pipeline {
     return this.camera.isActive()
   }
 
+  resetGestureState() {
+    this.gestureEngine.reset()
+    this.identityTracker.reset()
+  }
+
   startLoop() {
     if (this._running) return
     this._running = true
@@ -73,7 +87,7 @@ export class Pipeline {
       const video = this.camera.video || this.video
       if (!video || video.readyState < 2) return
 
-      let hands = { left: null, right: null }
+      let gestureSnapshot = null
       let mask = null
 
       // Hand detection
@@ -82,10 +96,12 @@ export class Pipeline {
         const raw = this.handTracker.detect(video, timestamp)
         if (raw && raw.hands.length > 0) {
           const smoothed = smoothFrame(this._prevFrame, raw, this.smoothingAlpha)
-          hands = sortLeftRight(smoothed.hands)
           this._prevFrame = smoothed
+          gestureSnapshot = this.gestureEngine.update(smoothed)
         } else {
           this._prevFrame = null
+          // Still update gesture engine to emit hand-lost events
+          gestureSnapshot = this.gestureEngine.update({ timestamp, hands: [] })
         }
       }
 
@@ -95,13 +111,40 @@ export class Pipeline {
         mask = this.maskSegmenter.segment(video, timestamp)
       }
 
-      // Notify subscribers
+      // Build frame data
+      if (!gestureSnapshot) {
+        gestureSnapshot = {
+          timestamp,
+          events: [],
+          hands: [],
+          byId: new Map(),
+          byHandedness: { left: null, right: null, unknown: [] },
+          primaryHandId: null,
+          hand: null,
+          velocity: 0,
+          speed: 0,
+          pinch: false,
+          gesture: 'none',
+        }
+      }
+
+      const hands = sortLeftRight(this._prevFrame?.hands ?? [])
+
       const frameData = {
         timestamp,
         hands,
         leftHand: hands.left,
         rightHand: hands.right,
         handCount: getHandCount(hands),
+        gesture: gestureSnapshot,
+        primaryHand: gestureSnapshot.hand,
+        gestureType: gestureSnapshot.gesture,
+        isPinching: gestureSnapshot.pinch,
+        isOpen: gestureSnapshot.gesture === 'open',
+        isFist: gestureSnapshot.gesture === 'fist',
+        isPointing: gestureSnapshot.gesture === 'point',
+        openness: gestureSnapshot.hand?.openness ?? 0,
+        events: gestureSnapshot.events,
         mask,
         video,
         cameraActive: this.camera.isActive(),

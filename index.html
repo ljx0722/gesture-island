@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0a0f" />
   <meta name="description" content="粒子交互AI教学 — 手势驱动的AR粒子与滤镜体验" />
+  <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
+  <link rel="manifest" href="public/manifest.webmanifest" />
   <title>粒子交互AI教学 | 长晴科技</title>
   <link rel="stylesheet" href="src/styles.css" />
 </head>
@@ -84,5 +86,10 @@
   </script>
 
   <script type="module" src="src/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/public/sw.js').catch(() => {})
+    }
+  </script>
 </body>
 </html>
