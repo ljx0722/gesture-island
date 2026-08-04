@@ -30,11 +30,8 @@
 
     <!-- 主渲染区 -->
     <div id="canvas-container">
-      <!-- 模块① 3D 画布 -->
       <canvas id="three-canvas" class="module-canvas"></canvas>
-      <!-- 模块② 摄像头画布 -->
       <canvas id="camera-canvas" class="module-canvas hidden"></canvas>
-      <!-- 隐藏的摄像头视频元素 -->
       <video id="camera-video" playsinline autoplay muted style="display:none"></video>
     </div>
 
@@ -48,11 +45,8 @@
     <!-- 底部控制栏 -->
     <div id="bottom-bar">
       <div id="bar-left">
-        <!-- 模块①：预设模型选择器 -->
         <div id="preset-gallery" class="module-ui"></div>
-        <!-- 模块②：滤镜选择器 -->
         <div id="filter-selector" class="module-ui hidden"></div>
-        <!-- 模块③：画作选择器 -->
         <div id="painting-selector" class="module-ui hidden"></div>
       </div>
       <div id="bar-center">
@@ -79,8 +73,8 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://unpkg.com/three@0.185.1/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
     }
   }
   </script>
@@ -88,7 +82,7 @@
   <script type="module" src="src/app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/public/sw.js').catch(() => {})
+      navigator.serviceWorker.register('/public/sw.js').catch(function(){})
     }
   </script>
 </body>

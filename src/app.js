@@ -1,6 +1,4 @@
 // app.js — 粒子交互AI教学 主入口
-// 三模块 Tab 切换 + 共享 Pipeline + 全局 UI 生命周期
-
 import { Pipeline } from './core/pipeline.js'
 import { ParticleModule } from './modules/particles/particleModule.js'
 import { PaintingModule } from './modules/paintings/paintingModule.js'
@@ -11,7 +9,7 @@ import { PRESETS } from './modules/particles/particlePresets.js'
 import { PAINTING_PRESETS } from './modules/paintings/paintingPresets.js'
 import { FILTER_PRESETS } from './modules/filters/filterPresets.js'
 
-// ── DOM refs ──
+// DOM refs
 const container = document.getElementById('canvas-container')
 const threeCanvas = document.getElementById('three-canvas')
 const cameraCanvas = document.getElementById('camera-canvas')
@@ -25,10 +23,9 @@ const smoothSlider = document.getElementById('smoothing-slider')
 const presetGallery = document.getElementById('preset-gallery')
 const filterSelector = document.getElementById('filter-selector')
 const paintingSelector = document.getElementById('painting-selector')
-const barLeft = document.getElementById('bar-left')
 
-// ── State ──
-let currentModule = 'particles' // 'particles' | 'filters' | 'paintings'
+// State
+let currentModule = 'particles'
 let pipeline = null
 let particleModule = null
 let filterModule = null
@@ -46,24 +43,60 @@ async function init() {
   statusDisplay = new StatusDisplay()
   paramPanel = new ParamPanel()
 
-  // Pipe video element to pipeline
+  // Bind events FIRST — before any module loading can fail
+  _bindEvents()
+
+  // Create pipeline
   pipeline = new Pipeline({ videoElement: videoEl, smoothingAlpha: parseFloat(smoothSlider.value) })
 
-  // Init particle module immediately (default tab)
-  threeCanvas.width = container.clientWidth
-  threeCanvas.height = container.clientHeight
+  // Init particle module (default tab)
+  try {
+    resizeCanvas()
+    _initParticlesModule()
+  } catch (e) {
+    console.error('Particle module init error:', e)
+    statusDisplay.showError('粒子模块加载失败: ' + e.message)
+  }
+
+  // Start render loop
+  _startRenderLoop()
+}
+
+function resizeCanvas() {
+  const w = container.clientWidth
+  const h = container.clientHeight
+  if (w > 0 && h > 0) {
+    threeCanvas.width = w
+    threeCanvas.height = h
+    cameraCanvas.width = w
+    cameraCanvas.height = h
+  }
+}
+
+async function _initParticlesModule() {
   particleModule = new ParticleModule(container, threeCanvas)
   await particleModule.init()
   particleModule.start()
   moduleInitialized.particles = true
   _renderPresetGallery()
   _showParamPanel('particles')
+}
 
-  // Start render loop for module①
-  _startRenderLoop()
+async function _initPaintingsModule() {
+  paintingModule = new PaintingModule(container, threeCanvas)
+  await paintingModule.init()
+  paintingModule.start()
+  moduleInitialized.paintings = true
+}
 
-  // Bind UI events
-  _bindEvents()
+async function _initFilterModule() {
+  filterModule = new FilterModule(cameraCanvas, videoEl)
+  await filterModule.init({
+    onProgress: ({ stage, progress, text }) => {
+      statusDisplay.setLoadingProgress(stage, progress, text)
+    },
+  })
+  moduleInitialized.filters = true
 }
 
 // ── Render Loop ──
@@ -74,6 +107,7 @@ function _startRenderLoop() {
     lastTime = now
     statusDisplay.updateFPS()
 
+    // Demo mode filter rendering
     if (currentModule === 'filters' && filterModule && demoActive && !cameraActive) {
       filterModule.renderDemo(dt)
     }
@@ -82,15 +116,11 @@ function _startRenderLoop() {
   animationId = requestAnimationFrame(loop)
 }
 
-// ── Gesture → Module Mapping ──
+// ── Gesture → Module ──
 let lastGestureType = 'none'
 function _handleGesture(frameData) {
   if (demoActive) return
-
-  const openness = frameData.openness
   const gesture = frameData.gestureType
-
-  // Status display
   if (gesture !== lastGestureType) {
     lastGestureType = gesture
     const labels = { open: '张开手掌', fist: '握拳', pinch: '捏合', point: '指向', none: '待机' }
@@ -104,134 +134,92 @@ function _handleGesture(frameData) {
   }
 }
 
+// ── Pipeline subscription ──
+function _subscribePipeline() {
+  pipeline.subscribe((frameData) => {
+    statusDisplay.setHandStatus(frameData.handCount)
+    _handleGesture(frameData)
+    if (currentModule === 'filters' && filterModule && !demoActive) {
+      filterModule.render(frameData, 0.016)
+    }
+  })
+}
+
 // ── Module Switching ──
 async function switchModule(moduleId) {
   if (currentModule === moduleId) return
 
-  // Hide all canvases
   threeCanvas.classList.add('hidden')
   cameraCanvas.classList.add('hidden')
-
-  // Hide all module UIs
   document.querySelectorAll('.module-ui').forEach(el => el.classList.add('hidden'))
 
   currentModule = moduleId
   tabBtns.forEach(b => b.classList.toggle('active', b.dataset.module === moduleId))
+  resizeCanvas()
 
-  if (moduleId === 'particles') {
-    threeCanvas.classList.remove('hidden')
-    if (!moduleInitialized.particles) {
-      particleModule = new ParticleModule(container, threeCanvas)
-      await particleModule.init()
-      moduleInitialized.particles = true
-    }
-    particleModule.start()
-    if (filterModule) filterModule.stop?.()
-    if (paintingModule) paintingModule.stop()
-    _renderPresetGallery()
-    _showParamPanel('particles')
-    // Stop camera pipeline if running
-    if (pipeline && cameraActive) {
-      pipeline.stopLoop()
-      pipeline.stopCamera()
-      cameraActive = false
-      btnCamera.textContent = '启动摄像头'
-      btnCamera.classList.remove('on')
-    }
-    if (demoActive) {
-      demoActive = false
-      btnDemo.classList.remove('on')
-      particleModule.setDemoMode(false)
-      particleModule.setGestureOpenness(0)
-    }
-  }
-
-  else if (moduleId === 'filters') {
-    cameraCanvas.classList.remove('hidden')
-    cameraCanvas.width = container.clientWidth
-    cameraCanvas.height = container.clientHeight
-
-    if (!moduleInitialized.filters) {
-      statusDisplay.showLoading('正在加载人物分割模型...')
-      try {
-        filterModule = new FilterModule(cameraCanvas, videoEl)
-        await filterModule.init({
-          onProgress: ({ stage, progress, text }) => {
-            statusDisplay.setLoadingProgress(stage, progress, text)
-          },
-        })
-        moduleInitialized.filters = true
+  try {
+    if (moduleId === 'particles') {
+      threeCanvas.classList.remove('hidden')
+      if (particleModule) particleModule.start()
+      else await _initParticlesModule()
+      _renderPresetGallery()
+      _showParamPanel('particles')
+      statusDisplay.setStatus('就绪')
+    } else if (moduleId === 'filters') {
+      cameraCanvas.classList.remove('hidden')
+      if (!moduleInitialized.filters) {
+        statusDisplay.showLoading('正在加载人物分割模型...')
+        await _initFilterModule()
         statusDisplay.hideLoading()
-      } catch (e) {
-        statusDisplay.hideLoading()
-        statusDisplay.showError(`模块加载失败：${e.message}`)
-        return
       }
-    }
-
-    if (particleModule) particleModule.stop()
-    if (paintingModule) paintingModule.stop()
-    _renderFilterSelector()
-    _showParamPanel('filters')
-
-    // Start camera and pipeline
-    await _startCamera()
-  }
-
-  else if (moduleId === 'paintings') {
-    threeCanvas.classList.remove('hidden')
-    threeCanvas.width = container.clientWidth
-    threeCanvas.height = container.clientHeight
-
-    if (!moduleInitialized.paintings) {
-      statusDisplay.showLoading('正在加载画作...')
-      try {
-        paintingModule = new PaintingModule(container, threeCanvas)
-        await paintingModule.init()
+      _renderFilterSelector()
+      _showParamPanel('filters')
+    } else if (moduleId === 'paintings') {
+      threeCanvas.classList.remove('hidden')
+      if (!moduleInitialized.paintings) {
+        statusDisplay.showLoading('正在加载画作...')
+        await _initPaintingsModule()
+        statusDisplay.hideLoading()
+      } else {
         paintingModule.start()
-        moduleInitialized.paintings = true
-        statusDisplay.hideLoading()
-      } catch (e) {
-        statusDisplay.hideLoading()
-        statusDisplay.showError(`画作加载失败：${e.message}`)
-        return
       }
-    } else {
-      paintingModule.start()
+      _renderPaintingSelector()
+      _showParamPanel('paintings')
+      statusDisplay.setStatus('就绪')
     }
-
-    if (particleModule) particleModule.stop()
-    if (filterModule) filterModule.stop?.()
-    _renderPaintingSelector()
-    _showParamPanel('paintings')
-
-    if (pipeline && cameraActive) {
-      pipeline.stopLoop()
-      pipeline.stopCamera()
-      cameraActive = false
-      btnCamera.textContent = '启动摄像头'
-      btnCamera.classList.remove('on')
-    }
-    if (demoActive) {
-      demoActive = false
-      btnDemo.classList.remove('on')
-      paintingModule.setDemoMode(false)
-    }
+  } catch (e) {
+    console.error('Module switch error:', e)
+    statusDisplay.hideLoading()
+    statusDisplay.showError(`模块加载失败：${e.message}`)
   }
 }
 
-// ── Camera ──
+// ── Camera (works on ANY tab) ──
 async function _startCamera() {
   if (cameraActive) return
   try {
-    statusDisplay.showLoading('正在启动摄像头...')
+    statusDisplay.showLoading('正在加载手势识别模型...')
     await pipeline.initHandTracker({
       onProgress: ({ stage, progress, text }) => {
         statusDisplay.setLoadingProgress(stage, progress, text)
       },
     })
-    pipeline.setNeedsMask(true)
 
+    // Only init mask when on filters tab
+    if (currentModule === 'filters') {
+      pipeline.setNeedsMask(true)
+      if (!pipeline.maskSegmenter) {
+        await pipeline.initMaskSegmenter({
+          onProgress: ({ stage, progress, text }) => {
+            statusDisplay.setLoadingProgress(stage, progress, text)
+          },
+        })
+      }
+    } else {
+      pipeline.setNeedsMask(false)
+    }
+
+    statusDisplay.showLoading('正在启动摄像头...')
     await pipeline.startCamera(videoEl, {
       events: {
         onEnded: () => {
@@ -245,22 +233,15 @@ async function _startCamera() {
     cameraActive = true
     btnCamera.textContent = '关闭摄像头'
     btnCamera.classList.add('on')
+    pipeline.resetGestureState()
     pipeline.startLoop()
-
-    // Subscribe pipeline to filter module
-    pipeline.subscribe((frameData) => {
-      statusDisplay.setHandStatus(frameData.handCount)
-      _handleGesture(frameData)
-      if (currentModule === 'filters' && filterModule && !demoActive) {
-        filterModule.render(frameData, 0.016)
-      }
-    })
-
+    _subscribePipeline()
     statusDisplay.hideLoading()
-    statusDisplay.showToast('摄像头已启动，请将双手放入画面', 'info', 2000)
+    statusDisplay.showToast('摄像头已启动，请将双手放入画面', 'info', 2500)
   } catch (e) {
     statusDisplay.hideLoading()
-    statusDisplay.showError(e.message)
+    console.error('Camera start error:', e)
+    statusDisplay.showError(e.message || '摄像头启动失败')
   }
 }
 
@@ -281,37 +262,40 @@ function toggleDemo() {
     btnDemo.classList.add('on')
     if (currentModule === 'particles' && particleModule) {
       particleModule.setDemoMode(true)
+      statusDisplay.setStatus('演示模式')
     } else if (currentModule === 'paintings' && paintingModule) {
       paintingModule.setDemoMode(true)
+      statusDisplay.setStatus('演示模式')
     } else if (currentModule === 'filters' && filterModule) {
       filterModule.demoMode = true
-      statusDisplay.setHandStatus(2)
+      statusDisplay.setHandStatus(2, '演示')
     }
   } else {
     btnDemo.classList.remove('on')
     if (currentModule === 'particles' && particleModule) {
       particleModule.setDemoMode(false)
-      particleModule.setGestureOpenness(0)
     } else if (currentModule === 'paintings' && paintingModule) {
       paintingModule.setDemoMode(false)
     } else if (currentModule === 'filters' && filterModule) {
       filterModule.demoMode = false
-      statusDisplay.setHandStatus(cameraActive ? 0 : 0)
     }
+    statusDisplay.setStatus('就绪')
   }
 }
 
 // ── Reset ──
 function reset() {
+  if (pipeline) pipeline.resetGestureState()
   if (currentModule === 'particles' && particleModule) {
     particleModule.reset()
+    statusDisplay.setStatus('就绪')
   } else if (currentModule === 'paintings' && paintingModule) {
     paintingModule.reset()
+    statusDisplay.setStatus('就绪')
   } else if (currentModule === 'filters' && filterModule) {
     filterModule.resetFilterParams()
     _showParamPanel('filters')
   }
-  statusDisplay.reset()
 }
 
 // ── UI Rendering ──
@@ -321,22 +305,19 @@ function _renderPresetGallery() {
   PRESETS.forEach((p, i) => {
     html += `<button class="preset-chip${i === (particleModule?.currentPresetIdx ?? 0) ? ' active' : ''}" data-preset="${i}">${p.name}</button>`
   })
-  html += `<button class="upload-btn" id="upload-model-btn">📁 上传模型</button>`
+  html += `<button class="upload-btn" id="upload-model-btn">上传模型</button>`
   presetGallery.innerHTML = html
 
-  // Bind preset clicks
   presetGallery.querySelectorAll('.preset-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.preset)
-      particleModule.selectPreset(idx)
+      particleModule?.selectPreset(idx)
       _renderPresetGallery()
       _showParamPanel('particles')
     })
   })
 
-  // Upload button
-  const uploadBtn = document.getElementById('upload-model-btn')
-  uploadBtn?.addEventListener('click', () => {
+  document.getElementById('upload-model-btn')?.addEventListener('click', () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.glb,.gltf'
@@ -362,31 +343,29 @@ function _renderFilterSelector() {
   filterSelector.classList.remove('hidden')
   const current = filterModule?.currentFilterId || 'vintage-halftone'
   const currentFilter = FILTER_PRESETS.find(f => f.id === current)
-
-  let html = `
-    <button class="filter-arrow" id="filter-prev">◀</button>
+  let html = `<button class="filter-arrow" id="filter-prev">◀</button>
     <span class="filter-name">${currentFilter?.name || ''}</span>
     <button class="filter-arrow" id="filter-next">▶</button>
     <div class="filter-dots">`
-  FILTER_PRESETS.forEach((f, i) => {
+  FILTER_PRESETS.forEach(f => {
     html += `<span class="filter-dot${f.id === current ? ' active' : ''}" data-filter="${f.id}" title="${f.name}"></span>`
   })
   html += `</div>`
   filterSelector.innerHTML = html
 
   document.getElementById('filter-prev')?.addEventListener('click', () => {
-    const f = filterModule.prevFilter()
+    filterModule?.prevFilter()
     _renderFilterSelector()
     _showParamPanel('filters')
   })
   document.getElementById('filter-next')?.addEventListener('click', () => {
-    const f = filterModule.nextFilter()
+    filterModule?.nextFilter()
     _renderFilterSelector()
     _showParamPanel('filters')
   })
   filterSelector.querySelectorAll('.filter-dot').forEach(dot => {
     dot.addEventListener('click', () => {
-      filterModule.selectFilter(dot.dataset.filter)
+      filterModule?.selectFilter(dot.dataset.filter)
       _renderFilterSelector()
       _showParamPanel('filters')
     })
@@ -399,26 +378,22 @@ function _renderPaintingSelector() {
   PAINTING_PRESETS.forEach((p, i) => {
     html += `<button class="painting-pill${i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
   })
-  html += `<button class="fullscreen-btn" id="fullscreen-btn">⛶ 全屏</button>`
+  html += `<button class="fullscreen-btn" id="fullscreen-btn">全屏</button>`
   paintingSelector.innerHTML = html
 
   paintingSelector.querySelectorAll('.painting-pill').forEach(btn => {
     btn.addEventListener('click', async () => {
       const idx = parseInt(btn.dataset.painting)
       statusDisplay.showLoading('正在切换画作...')
-      await paintingModule.selectPainting(idx)
+      await paintingModule?.selectPainting(idx)
       statusDisplay.hideLoading()
       _renderPaintingSelector()
       _showParamPanel('paintings')
     })
   })
-
   document.getElementById('fullscreen-btn')?.addEventListener('click', () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen()
-    } else {
-      document.documentElement.requestFullscreen().catch(() => {})
-    }
+    if (document.fullscreenElement) document.exitFullscreen()
+    else document.documentElement.requestFullscreen().catch(() => {})
   })
 }
 
@@ -437,18 +412,13 @@ function _showParamPanel(moduleId) {
       params[key] = val
       particleModule?.setParams(params)
     })
-  }
-
-  else if (moduleId === 'filters') {
+  } else if (moduleId === 'filters') {
     const filter = filterModule?.getCurrentFilter()
     if (!filter) return
-    const currentParams = filterModule?.filterParams || {}
-    paramPanel.setModule('filters', filter.params, currentParams, (key, val) => {
+    paramPanel.setModule('filters', filter.params, filterModule?.filterParams || {}, (key, val) => {
       filterModule?.setFilterParam(key, val)
     })
-  }
-
-  else if (moduleId === 'paintings') {
+  } else if (moduleId === 'paintings') {
     const params = paintingModule?.params || {}
     paramPanel.setModule('paintings', {
       pointScale: { label: '粒子大小', min: 0.3, max: 5, step: 0.1, default: 1.0 },
@@ -472,23 +442,19 @@ function _bindEvents() {
   paramToggle.addEventListener('click', () => paramPanel.toggle())
 
   btnCamera.addEventListener('click', async () => {
-    if (cameraActive) {
-      await _stopCamera()
-    } else {
-      await _startCamera()
-    }
+    if (cameraActive) await _stopCamera()
+    else await _startCamera()
   })
 
-  btnDemo.addEventListener('click', toggleDemo)
-  btnReset.addEventListener('click', reset)
+  btnDemo.addEventListener('click', () => toggleDemo())
+  btnReset.addEventListener('click', () => reset())
 
   smoothSlider.addEventListener('input', () => {
-    const val = parseFloat(smoothSlider.value)
-    pipeline?.setSmoothingAlpha(val)
+    pipeline?.setSmoothingAlpha(parseFloat(smoothSlider.value))
   })
 
-  // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return
     switch (e.key) {
       case '1': switchModule('particles'); break
       case '2': switchModule('filters'); break
@@ -503,15 +469,8 @@ function _bindEvents() {
     }
   })
 
-  // Handle resize
-  window.addEventListener('resize', () => {
-    const w = container.clientWidth
-    const h = container.clientHeight
-    if (threeCanvas) { threeCanvas.width = w; threeCanvas.height = h }
-    if (cameraCanvas) { cameraCanvas.width = w; cameraCanvas.height = h }
-  })
+  window.addEventListener('resize', resizeCanvas)
 
-  // Visibility change: pause/resume
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (currentModule === 'particles') particleModule?.stop()
@@ -526,8 +485,11 @@ function _bindEvents() {
 // ── Bootstrap ──
 init().catch(err => {
   console.error('App init error:', err)
-  document.getElementById('loading-overlay')?.classList.add('hidden')
+  const overlay = document.getElementById('loading-overlay')
+  if (overlay) overlay.classList.add('hidden')
   const toast = document.getElementById('status-toast')
-  toast.textContent = `启动失败：${err.message}`
-  toast.className = 'toast error'
+  if (toast) {
+    toast.textContent = '启动失败：' + (err.message || '未知错误')
+    toast.className = 'toast error'
+  }
 })
