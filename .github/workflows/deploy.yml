@@ -1,0 +1,153 @@
+name: Deploy to Sealos
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: gesture-island-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify project structure
+        run: |
+          test -f index.html || (echo "Missing index.html" && exit 1)
+          test -f nginx.conf || (echo "Missing nginx.conf" && exit 1)
+          test -f Dockerfile || (echo "Missing Dockerfile" && exit 1)
+          test -d src || (echo "Missing src/" && exit 1)
+          test -d mediapipe || (echo "Missing mediapipe/" && exit 1)
+          echo "All required files present."
+
+  build:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/gesture-island:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/gesture-island:latest
+
+  deploy-sealos:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+      - name: Configure Sealos cluster
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.SEALOS_KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
+          kubectl config current-context
+          ns="${{ secrets.SEALOS_NAMESPACE }}"
+          kubectl get namespace "$ns" && echo "namespace OK: $ns"
+
+      - name: Write deploy manifest and apply
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/gesture-island@${{ needs.build.outputs.digest }}"
+          echo "Deploying: ${IMAGE}"
+          cat > /tmp/deploy.yaml << ENDMANIFEST
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: gesture-island
+            labels:
+              app: gesture-island
+          spec:
+            ports:
+              - port: 80
+                targetPort: 8080
+                protocol: TCP
+            selector:
+              app: gesture-island
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: gesture-island
+            labels:
+              app: gesture-island
+          spec:
+            replicas: 1
+            revisionHistoryLimit: 1
+            selector:
+              matchLabels:
+                app: gesture-island
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxUnavailable: 0
+                maxSurge: 1
+            template:
+              metadata:
+                labels:
+                  app: gesture-island
+              spec:
+                automountServiceAccountToken: false
+                containers:
+                  - name: gesture-island
+                    image: ${IMAGE}
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 64Mi
+                      limits:
+                        cpu: 500m
+                        memory: 256Mi
+                    ports:
+                      - containerPort: 8080
+                    imagePullPolicy: Always
+                    readinessProbe:
+                      httpGet:
+                        path: /health
+                        port: 8080
+                      initialDelaySeconds: 3
+                      periodSeconds: 5
+                    livenessProbe:
+                      httpGet:
+                        path: /health
+                        port: 8080
+                      initialDelaySeconds: 10
+                      periodSeconds: 15
+          ENDMANIFEST
+          kubectl apply -f /tmp/deploy.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/gesture-island --timeout=180s
+          kubectl get pods -l app=gesture-island
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl get deployment gesture-island -o yaml | tail -40
+          kubectl get rs -l app=gesture-island
+          kubectl get pods -l app=gesture-island
+          kubectl get events --sort-by=.lastTimestamp | tail -20

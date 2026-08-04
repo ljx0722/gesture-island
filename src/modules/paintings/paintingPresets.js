@@ -1,0 +1,103 @@
+// paintingPresets.js — 6 幅世界名画定义
+export const PAINTING_PRESETS = [
+  {
+    id: 'starry-night',
+    title: '星月夜',
+    artist: '文森特·梵高',
+    year: '1889',
+    image: 'assets/paintings/van-gogh-starry-night.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 5.0,
+      wrapAngle: 1.6,
+      particleScale: 1.0,
+      noiseAmp: 0.3,
+      brightness: 1.1,
+      bgColor: '#0a0a1a',
+    },
+  },
+  {
+    id: 'water-lily',
+    title: '睡莲池',
+    artist: '克劳德·莫奈',
+    year: '1919',
+    image: 'assets/paintings/monet-water-lily-pond.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 4.5,
+      wrapAngle: 1.5,
+      particleScale: 0.9,
+      noiseAmp: 0.2,
+      brightness: 1.0,
+      bgColor: '#0a1a0f',
+    },
+  },
+  {
+    id: 'great-wave',
+    title: '神奈川冲浪里',
+    artist: '葛饰北斋',
+    year: '1831',
+    image: 'assets/paintings/hokusai-great-wave.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 5.0,
+      wrapAngle: 1.7,
+      particleScale: 1.0,
+      noiseAmp: 0.35,
+      brightness: 1.0,
+      bgColor: '#1a1a2a',
+    },
+  },
+  {
+    id: 'apples-oranges',
+    title: '苹果与橙子',
+    artist: '保罗·塞尚',
+    year: '1899',
+    image: 'assets/paintings/cezanne-apples-oranges.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 4.0,
+      wrapAngle: 1.4,
+      particleScale: 0.85,
+      noiseAmp: 0.18,
+      brightness: 1.0,
+      bgColor: '#1a120a',
+    },
+  },
+  {
+    id: 'la-grande-jatte',
+    title: '大碗岛星期天',
+    artist: '乔治·修拉',
+    year: '1886',
+    image: 'assets/paintings/seurat-la-grande-jatte.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 5.5,
+      wrapAngle: 1.6,
+      particleScale: 0.8,
+      noiseAmp: 0.22,
+      brightness: 1.0,
+      bgColor: '#121a0a',
+    },
+  },
+  {
+    id: 'pearl-earring',
+    title: '戴珍珠耳环的少女',
+    artist: '约翰内斯·维米尔',
+    year: '1665',
+    image: 'assets/paintings/vermeer-pearl-earring.jpg',
+    defaults: {
+      sampleDensity: 3,
+      domeRadius: 3.5,
+      wrapAngle: 1.3,
+      particleScale: 0.9,
+      noiseAmp: 0.15,
+      brightness: 1.0,
+      bgColor: '#0a0a0f',
+    },
+  },
+]
+
+export function getPaintingById(id) {
+  return PAINTING_PRESETS.find(p => p.id === id)
+}

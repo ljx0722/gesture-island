@@ -1,0 +1,380 @@
+// filterModule.js — 模块②入口：摄像头滤镜渲染管线
+import { createMaskSegmenter } from '../../tracking/maskSegmenter.js'
+import { MaskProcessor } from './maskProcessor.js'
+import { PatchRenderer } from './patchRenderer.js'
+import { FILTER_APPLIERS } from './filterEffects.js'
+import { FILTER_PRESETS, getFilterById } from './filterPresets.js'
+import { drawMirrored } from '../../utils/canvas.js'
+
+export class FilterModule {
+  constructor(displayCanvas, videoElement) {
+    this.displayCanvas = displayCanvas
+    this.displayCtx = displayCanvas.getContext('2d', { alpha: false })
+    this.video = videoElement
+    this.maskSegmenter = null
+    this.maskProcessor = new MaskProcessor()
+    this.patchRenderer = new PatchRenderer()
+
+    this.currentFilterId = 'vintage-halftone'
+    this.filterParams = {}
+    this.time = 0
+
+    // Offscreen canvases
+    this._sourceCanvas = document.createElement('canvas')
+    this._sourceCtx = this._sourceCanvas.getContext('2d', { willReadFrequently: true })
+    this._processCanvas = document.createElement('canvas')
+    this._processCtx = this._processCanvas.getContext('2d', { willReadFrequently: true })
+
+    // Load default params
+    this._loadDefaultParams()
+
+    // Demo mode state
+    this.demoMode = false
+    this._demoHands = null
+    this._demoTime = 0
+  }
+
+  _loadDefaultParams() {
+    const preset = getFilterById(this.currentFilterId)
+    if (preset) {
+      for (const [key, p] of Object.entries(preset.params)) {
+        this.filterParams[key] = p.default
+      }
+    }
+  }
+
+  async init(options = {}) {
+    this.maskSegmenter = await createMaskSegmenter({
+      onProgress: options.onProgress,
+    })
+  }
+
+  getCurrentFilter() {
+    return getFilterById(this.currentFilterId)
+  }
+
+  getAllFilters() {
+    return FILTER_PRESETS
+  }
+
+  selectFilter(id) {
+    this.currentFilterId = id
+    const preset = getFilterById(id)
+    if (preset) {
+      const newParams = {}
+      for (const [key, p] of Object.entries(preset.params)) {
+        // Keep existing param values if they exist, otherwise use default
+        newParams[key] = this.filterParams[key] ?? p.default
+      }
+      this.filterParams = newParams
+    }
+    return preset
+  }
+
+  nextFilter() {
+    const idx = FILTER_PRESETS.findIndex(f => f.id === this.currentFilterId)
+    const next = (idx + 1) % FILTER_PRESETS.length
+    return this.selectFilter(FILTER_PRESETS[next].id)
+  }
+
+  prevFilter() {
+    const idx = FILTER_PRESETS.findIndex(f => f.id === this.currentFilterId)
+    const prev = (idx - 1 + FILTER_PRESETS.length) % FILTER_PRESETS.length
+    return this.selectFilter(FILTER_PRESETS[prev].id)
+  }
+
+  /**
+   * Main render frame called from pipeline or demo loop
+   */
+  render(frameData, dt) {
+    this.time += dt
+
+    const { video, hands, leftHand, rightHand, mask } = frameData
+    const w = this.displayCanvas.width || this.displayCanvas.clientWidth
+    const h = this.displayCanvas.height || this.displayCanvas.clientHeight
+
+    // Resize if needed
+    if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
+      this.displayCanvas.width = w
+      this.displayCanvas.height = h
+      this._sourceCanvas.width = w
+      this._sourceCanvas.height = h
+      this._processCanvas.width = w
+      this._processCanvas.height = h
+    }
+
+    const ctx = this.displayCtx
+
+    // Draw mirrored camera frame to source canvas
+    drawMirrored(this._sourceCtx, video, w, h)
+
+    // Process segmentation mask
+    let processedMask = false
+    if (mask && mask.data && !this.demoMode) {
+      this.maskProcessor.process(mask.data, mask.width, mask.height)
+      processedMask = true
+    }
+
+    // Generate patches
+    let patches = []
+    if (leftHand && rightHand) {
+      patches = this.patchRenderer.generateQuads(leftHand, rightHand, w, h)
+    }
+
+    // Clear display
+    ctx.clearRect(0, 0, w, h)
+
+    // Draw source frame as background
+    ctx.drawImage(this._sourceCanvas, 0, 0, w, h)
+
+    if (patches.length === 0) {
+      // No hands: just show camera
+      this._drawHandSkeletons(ctx, leftHand, rightHand, w, h)
+      return
+    }
+
+    const applyFilter = FILTER_APPLIERS[this.currentFilterId]
+
+    for (const patch of patches) {
+      if (this.patchRenderer.isDegenerate(patch.vertices)) continue
+
+      // Get bounding box of patch
+      const xs = patch.vertices.map(v => v.x), ys = patch.vertices.map(v => v.y)
+      const bx = Math.max(0, Math.floor(Math.min(...xs)))
+      const by = Math.max(0, Math.floor(Math.min(...ys)))
+      const bw = Math.min(w - bx, Math.ceil(Math.max(...xs) - bx))
+      const bh = Math.min(h - by, Math.ceil(Math.max(...ys) - by))
+      if (bw <= 0 || bh <= 0) continue
+
+      // Get image data from source within bounding box
+      const sourceData = this._sourceCtx.getImageData(bx, by, bw, bh)
+
+      // Apply filter only to foreground pixels
+      const filteredData = this._sourceCtx.createImageData(bw, bh)
+      for (let py = 0; py < bh; py++) {
+        for (let px = 0; px < bw; px++) {
+          const idx = (py * bw + px) * 4
+          const r = sourceData.data[idx]
+          const g = sourceData.data[idx + 1]
+          const b = sourceData.data[idx + 2]
+          const a = sourceData.data[idx + 3]
+
+          // Check mask
+          let maskAlpha = 255
+          if (processedMask || this.demoMode) {
+            const wx = bx + px, wy = by + py
+            maskAlpha = processedMask ? this.maskProcessor.getAlphaAt(wx, wy) : (this.demoMode ? 200 : 255)
+          }
+
+          // Only filter foreground (person)
+          if (maskAlpha > 10 && applyFilter) {
+            const p = this.filterParams
+            const result = applyFilter(r, g, b, bx + px, by + py, maskAlpha, p, this.time)
+            filteredData.data[idx] = result.r
+            filteredData.data[idx + 1] = result.g
+            filteredData.data[idx + 2] = result.b
+            filteredData.data[idx + 3] = a
+          } else {
+            // Background: keep original
+            filteredData.data[idx] = r
+            filteredData.data[idx + 1] = g
+            filteredData.data[idx + 2] = b
+            filteredData.data[idx + 3] = a
+          }
+        }
+      }
+
+      // Draw filtered region clipped to patch shape
+      this.patchRenderer.drawPatchClip(ctx, patch.vertices)
+      this._processCtx.putImageData(filteredData, 0, 0)
+      ctx.drawImage(this._processCanvas, 0, 0, bw, bh, bx, by, bw, bh)
+      ctx.restore()
+
+      // Draw soft edge outline
+      this.patchRenderer.drawPatchEdge(ctx, patch.vertices)
+    }
+
+    // Draw hand skeletons on top
+    this._drawHandSkeletons(ctx, leftHand, rightHand, w, h)
+  }
+
+  _drawHandSkeletons(ctx, leftHand, rightHand, w, h) {
+    const toPixel = (pt) => ({ x: (1 - pt.x) * w, y: pt.y * h }) // Mirror back
+
+    const connections = [
+      [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
+      [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16],
+      [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
+    ]
+
+    for (const hand of [leftHand, rightHand]) {
+      if (!hand?.landmarks) continue
+      ctx.save()
+      // Skeleton lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      for (const [a, b] of connections) {
+        const pa = toPixel(hand.landmarks[a])
+        const pb = toPixel(hand.landmarks[b])
+        ctx.moveTo(pa.x, pa.y)
+        ctx.lineTo(pb.x, pb.y)
+      }
+      ctx.stroke()
+
+      // Keypoint dots
+      for (const pt of hand.landmarks) {
+        const p = toPixel(pt)
+        ctx.fillStyle = 'rgba(108,140,255,0.8)'
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+    }
+  }
+
+  /**
+   * Generate synthetic hands for demo mode
+   */
+  _generateDemoHands(w, h) {
+    this._demoTime += 0.016
+    const t = this._demoTime
+
+    // Two hands slowly orbiting
+    const leftCx = w * 0.25 + Math.sin(t * 0.7) * w * 0.05
+    const leftCy = h * 0.55 + Math.cos(t * 0.5) * h * 0.08
+    const rightCx = w * 0.75 + Math.sin(t * 0.7 + 1) * w * 0.05
+    const rightCy = h * 0.5 + Math.cos(t * 0.5 + 1) * h * 0.08
+
+    const makeHand = (cx, cy, side) => {
+      const landmarks = []
+      const handSize = h * 0.12
+      const palmX = cx
+      const palmY = cy + handSize * 0.3
+
+      // Simplified 21 landmark hand shape
+      for (let i = 0; i < 21; i++) {
+        let x = palmX, y = palmY
+        if (i === 0) { x = palmX; y = palmY + handSize * 0.3 } // Wrist
+        else if (i <= 4) { const ang = -0.6 + (i - 1) * 0.2; x = palmX + Math.cos(ang) * handSize * (0.4 + (i - 1) * 0.1); y = palmY - Math.sin(ang) * handSize * (0.4 + (i - 1) * 0.1) }
+        else if (i <= 8) { const ang = -0.6 + (i - 5) * 0.18; x = palmX + Math.cos(ang) * handSize * (0.35 + (i - 5) * 0.09); y = palmY - Math.sin(ang) * handSize * (0.35 + (i - 5) * 0.09) }
+        else if (i <= 12) { const ang = -0.5 + (i - 9) * 0.17; x = palmX + Math.cos(ang) * handSize * (0.3 + (i - 9) * 0.08); y = palmY - Math.sin(ang) * handSize * (0.3 + (i - 9) * 0.08) }
+        else if (i <= 16) { const ang = -0.4 + (i - 13) * 0.16; x = palmX + Math.cos(ang) * handSize * (0.25 + (i - 13) * 0.07); y = palmY - Math.sin(ang) * handSize * (0.25 + (i - 13) * 0.07) }
+        else { const ang = -0.3 + (i - 17) * 0.15; x = palmX + Math.cos(ang) * handSize * (0.2 + (i - 17) * 0.06); y = palmY - Math.sin(ang) * handSize * (0.2 + (i - 17) * 0.06) }
+
+        // Slight oscillation
+        x += Math.sin(t * 2 + i * 0.5) * 3
+        y += Math.cos(t * 2.3 + i * 0.4) * 3
+
+        landmarks.push({ x: x / w, y: y / h, z: 0 })
+      }
+
+      return {
+        landmarks,
+        palmCenter: { x: palmX / w, y: palmY / h, z: 0 },
+        pinchPoint: { x: (landmarks[4].x + landmarks[8].x) / 2, y: (landmarks[4].y + landmarks[8].y) / 2, z: 0 },
+        openness: 0.5 + Math.sin(t * 0.8) * 0.4,
+        id: `demo-${side}`,
+        handedness: side,
+      }
+    }
+
+    return {
+      leftHand: makeHand(leftCx, leftCy, 'left'),
+      rightHand: makeHand(rightCx, rightCy, 'right'),
+      hands: [makeHand(leftCx, leftCy, 'left'), makeHand(rightCx, rightCy, 'right')],
+    }
+  }
+
+  /**
+   * Render demo frame (no camera)
+   */
+  renderDemo(dt) {
+    const w = this.displayCanvas.width || this.displayCanvas.clientWidth
+    const h = this.displayCanvas.height || this.displayCanvas.clientHeight
+
+    if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
+      this.displayCanvas.width = w
+      this.displayCanvas.height = h
+    }
+
+    const hands = this._generateDemoHands(w, h)
+    const frameData = {
+      video: null,
+      hands: hands.hands,
+      leftHand: hands.leftHand,
+      rightHand: hands.rightHand,
+      mask: null,
+    }
+
+    // Fill background with dark gradient for demo
+    const ctx = this.displayCtx
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) / 1.5)
+    grad.addColorStop(0, '#1a1a2e')
+    grad.addColorStop(1, '#0a0a0f')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, w, h)
+
+    // Draw the patches without video source — use synthetic texture
+    const patches = this.patchRenderer.generateQuads(hands.leftHand, hands.rightHand, w, h)
+    const applyFilter = FILTER_APPLIERS[this.currentFilterId]
+
+    for (const patch of patches) {
+      if (this.patchRenderer.isDegenerate(patch.vertices)) continue
+
+      const xs = patch.vertices.map(v => v.x), ys = patch.vertices.map(v => v.y)
+      const bx = Math.max(0, Math.floor(Math.min(...xs)))
+      const by = Math.max(0, Math.floor(Math.min(...ys)))
+      const bw = Math.min(w - bx, Math.ceil(Math.max(...xs) - bx))
+      const bh = Math.min(h - by, Math.ceil(Math.max(...ys) - by))
+      if (bw <= 0 || bh <= 0) continue
+
+      // Create synthetic pixel data (demo: colored noise / gradient field)
+      const data = ctx.createImageData(bw, bh)
+      for (let py = 0; py < bh; py++) {
+        for (let px = 0; px < bw; px++) {
+          const idx = (py * bw + px) * 4
+          const wx = bx + px, wy = by + py
+          // Gradient with noise simulating a person silhouette
+          const gradVal = 100 + Math.sin(wx * 0.01) * 40 + Math.cos(wy * 0.01) * 40 + (Math.random() - 0.5) * 20
+          const r = Math.min(255, gradVal + 40)
+          const gg = Math.min(255, gradVal + 15)
+          const bb = Math.min(255, gradVal - 10)
+
+          const p = this.filterParams
+          const result = applyFilter(r, gg, bb, wx, wy, 200, p, this.time)
+          data.data[idx] = result.r
+          data.data[idx + 1] = result.g
+          data.data[idx + 2] = result.b
+          data.data[idx + 3] = 255
+        }
+      }
+
+      this.patchRenderer.drawPatchClip(ctx, patch.vertices)
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = bw; tempCanvas.height = bh
+      const tempCtx = tempCanvas.getContext('2d')
+      tempCtx.putImageData(data, 0, 0)
+      ctx.drawImage(tempCanvas, 0, 0, bw, bh, bx, by, bw, bh)
+      ctx.restore()
+
+      this.patchRenderer.drawPatchEdge(ctx, patch.vertices)
+    }
+
+    // Draw skeletons
+    this._drawHandSkeletons(ctx, hands.leftHand, hands.rightHand, w, h)
+  }
+
+  setFilterParam(key, value) {
+    this.filterParams[key] = value
+  }
+
+  resetFilterParams() {
+    this._loadDefaultParams()
+  }
+
+  dispose() {
+    this.maskSegmenter?.close?.()
+  }
+}

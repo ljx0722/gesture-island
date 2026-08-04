@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="description" content="粒子交互AI教学 — 手势驱动的AR粒子与滤镜体验" />
+  <title>粒子交互AI教学 | 长晴科技</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 公司品牌栏 -->
+    <div id="brand-bar">
+      <span class="brand-logo">&#9670;</span>
+      <span class="brand-divider"></span>
+      <span class="brand-name-cn">上海长晴人工智能科技有限公司</span>
+      <span class="brand-name-en">Changqing AI Technology (Shanghai) Co., Ltd.</span>
+    </div>
+
+    <!-- 顶部导航 Tab -->
+    <nav id="tab-bar">
+      <button class="tab-btn active" data-module="particles">粒子模型</button>
+      <button class="tab-btn" data-module="filters">摄像头滤镜</button>
+      <button class="tab-btn" data-module="paintings">艺术画</button>
+      <button id="param-toggle" class="icon-btn" title="参数面板">&#9881;</button>
+    </nav>
+
+    <!-- 主渲染区 -->
+    <div id="canvas-container">
+      <!-- 模块① 3D 画布 -->
+      <canvas id="three-canvas" class="module-canvas"></canvas>
+      <!-- 模块② 摄像头画布 -->
+      <canvas id="camera-canvas" class="module-canvas hidden"></canvas>
+      <!-- 隐藏的摄像头视频元素 -->
+      <video id="camera-video" playsinline autoplay muted style="display:none"></video>
+    </div>
+
+    <!-- 加载/状态提示 -->
+    <div id="status-toast" class="toast hidden"></div>
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner"></div>
+      <p id="loading-text">正在加载模型...</p>
+    </div>
+
+    <!-- 底部控制栏 -->
+    <div id="bottom-bar">
+      <div id="bar-left">
+        <!-- 模块①：预设模型选择器 -->
+        <div id="preset-gallery" class="module-ui"></div>
+        <!-- 模块②：滤镜选择器 -->
+        <div id="filter-selector" class="module-ui hidden"></div>
+        <!-- 模块③：画作选择器 -->
+        <div id="painting-selector" class="module-ui hidden"></div>
+      </div>
+      <div id="bar-center">
+        <span id="gesture-status" class="status-dot offline"></span>
+        <span id="status-text">就绪</span>
+        <span id="fps-display" class="fps"></span>
+      </div>
+      <div id="bar-right">
+        <button id="btn-camera" class="ctrl-btn">启动摄像头</button>
+        <button id="btn-demo" class="ctrl-btn">演示模式</button>
+        <button id="btn-reset" class="ctrl-btn">重置</button>
+        <div class="slider-group">
+          <label for="smoothing-slider">平滑度</label>
+          <input type="range" id="smoothing-slider" min="0.1" max="0.9" step="0.05" value="0.35" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数面板 -->
+    <div id="param-panel" class="param-panel hidden"></div>
+  </div>
+
+  <!-- Three.js Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.185.1/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
