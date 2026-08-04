@@ -45,6 +45,7 @@ async function init() {
 
   // Bind events FIRST — before any module loading can fail
   _bindEvents()
+  _setupMouseGestures()
 
   // Create pipeline
   pipeline = new Pipeline({ videoElement: videoEl, smoothingAlpha: parseFloat(smoothSlider.value) })
@@ -111,6 +112,13 @@ function _startRenderLoop() {
     if (currentModule === 'filters' && filterModule && demoActive && !cameraActive) {
       filterModule.renderDemo(dt)
     }
+
+    // Mouse gesture smooth lerp
+    if (!cameraActive && !demoActive && mouseTargetOpenness !== mouseOpenness) {
+      mouseOpenness += (mouseTargetOpenness - mouseOpenness) * Math.min(8 * dt, 1)
+      if (Math.abs(mouseTargetOpenness - mouseOpenness) < 0.001) mouseOpenness = mouseTargetOpenness
+      _applyMouseOpenness()
+    }
   }
   lastTime = performance.now()
   animationId = requestAnimationFrame(loop)
@@ -125,6 +133,82 @@ function _handleGesture(frameData) {
     lastGestureType = gesture
     const labels = { open: '张开手掌', fist: '握拳', pinch: '捏合', point: '指向', none: '待机' }
     statusDisplay.setHandStatus(frameData.handCount, labels[gesture] || '')
+  }
+
+  if (currentModule === 'particles' && particleModule) {
+    particleModule.onGestureFrame(frameData)
+  } else if (currentModule === 'paintings' && paintingModule) {
+    paintingModule.onGestureFrame(frameData)
+  }
+}
+
+// ── Mouse gesture simulation ──
+let mouseActive = false
+let mouseOpenness = 0.5
+let mouseTargetOpenness = 0.5
+
+function _setupMouseGestures() {
+  const targetEl = document.getElementById('canvas-container')
+
+  targetEl.addEventListener('mousedown', (e) => {
+    if (cameraActive || demoActive) return
+    mouseActive = true
+    mouseTargetOpenness = 0.05 // hold = fist
+    _applyMouseOpenness()
+  })
+
+  targetEl.addEventListener('mouseup', () => {
+    if (cameraActive || demoActive) return
+    mouseActive = false
+    mouseTargetOpenness = 1.0 // release = open
+    _applyMouseOpenness()
+  })
+
+  targetEl.addEventListener('mouseleave', () => {
+    if (cameraActive || demoActive) return
+    mouseActive = false
+    mouseTargetOpenness = 0.5
+    _applyMouseOpenness()
+  })
+
+  targetEl.addEventListener('wheel', (e) => {
+    if (cameraActive || demoActive) return
+    e.preventDefault()
+    mouseTargetOpenness = Math.max(0, Math.min(1, mouseTargetOpenness - e.deltaY * 0.001))
+    _applyMouseOpenness()
+  }, { passive: false })
+
+  // Touch support
+  targetEl.addEventListener('touchstart', (e) => {
+    if (cameraActive || demoActive) return
+    if (e.touches.length === 1) {
+      mouseActive = true
+      mouseTargetOpenness = 0.05
+      _applyMouseOpenness()
+    }
+  })
+
+  targetEl.addEventListener('touchend', () => {
+    if (cameraActive || demoActive) return
+    mouseActive = false
+    mouseTargetOpenness = 1.0
+    _applyMouseOpenness()
+  })
+}
+
+function _applyMouseOpenness() {
+  if (cameraActive || demoActive) return
+  // Smooth lerp in render loop
+  const frameData = {
+    handCount: mouseActive ? 1 : 0,
+    openness: mouseOpenness,
+    gestureType: mouseOpenness > 0.7 ? 'open' : mouseOpenness < 0.3 ? 'fist' : 'none',
+    leftHand: null,
+    rightHand: null,
+    hands: { left: null, right: null },
+    events: [],
+    gesture: { gesture: mouseOpenness > 0.7 ? 'open' : mouseOpenness < 0.3 ? 'fist' : 'none', pinch: mouseOpenness < 0.3 },
+    primaryHand: { openness: mouseOpenness },
   }
 
   if (currentModule === 'particles' && particleModule) {
