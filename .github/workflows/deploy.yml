@@ -132,15 +132,6 @@ jobs:
                       - containerPort: 8080
                         name: http
                     imagePullPolicy: Always
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      capabilities:
-                        drop:
-                          - ALL
-                      runAsNonRoot: true
-                      runAsUser: 101
-                      seccompProfile:
-                        type: RuntimeDefault
                     readinessProbe:
                       httpGet:
                         path: /health
