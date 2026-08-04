@@ -80,10 +80,12 @@ jobs:
             name: gesture-island
             labels:
               app: gesture-island
+              cloud.sealos.io/app-deploy-manager: gesture-island
           spec:
             ports:
               - port: 80
                 targetPort: 8080
+                name: http
                 protocol: TCP
             selector:
               app: gesture-island
@@ -92,8 +94,13 @@ jobs:
           kind: Deployment
           metadata:
             name: gesture-island
+            annotations:
+              originImageName: ghcr.io/${{ github.repository_owner }}/gesture-island:latest
+              deploy.cloud.sealos.io/minReplicas: '1'
+              deploy.cloud.sealos.io/maxReplicas: '1'
             labels:
               app: gesture-island
+              cloud.sealos.io/app-deploy-manager: gesture-island
           spec:
             replicas: 1
             revisionHistoryLimit: 1
@@ -116,14 +123,24 @@ jobs:
                     image: ${IMAGE}
                     resources:
                       requests:
-                        cpu: 50m
-                        memory: 64Mi
+                        cpu: 100m
+                        memory: 128Mi
                       limits:
-                        cpu: 500m
-                        memory: 256Mi
+                        cpu: 1
+                        memory: 512Mi
                     ports:
                       - containerPort: 8080
+                        name: http
                     imagePullPolicy: Always
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                      runAsNonRoot: true
+                      runAsUser: 101
+                      seccompProfile:
+                        type: RuntimeDefault
                     readinessProbe:
                       httpGet:
                         path: /health
@@ -138,6 +155,8 @@ jobs:
                       periodSeconds: 15
           ENDMANIFEST
           kubectl apply -f /tmp/deploy.yaml
+          # Clean up old Sealos-managed service from previous deployment
+          kubectl delete service gesture-island-znazxfmmwtds --ignore-not-found=true
 
       - name: Wait for rollout
         run: |
