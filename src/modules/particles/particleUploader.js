@@ -1,70 +1,42 @@
-// particleUploader.js — 用户上传 GLB/GLTF 解析为粒子
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { mergeGeometries as mergeBufGeos } from 'three/addons/utils/BufferGeometryUtils.js'
-
+// particleUploader.js — GLB/GLTF 上传解析为粒子
 export class ParticleUploader {
-  constructor() {
-    this.loader = new GLTFLoader()
-  }
-
   async loadFromFile(file) {
+    const T = window.THREE
+    if (!T.GLTFLoader) throw new Error('GLTFLoader 未加载，无法解析模型文件')
     const url = URL.createObjectURL(file)
     try {
-      const geometry = await this._loadGLTF(url)
-      return geometry
-    } finally {
+      const loader = new T.GLTFLoader()
+      const gltf = await loader.loadAsync(url)
       URL.revokeObjectURL(url)
+      const geos = []
+      gltf.scene.traverse(child => {
+        if (child.isMesh && child.geometry) {
+          const cloned = child.geometry.clone()
+          cloned.applyMatrix4(child.matrixWorld)
+          geos.push(cloned)
+        }
+      })
+      if (geos.length === 0) throw new Error('模型中没有可用的几何体')
+      // Simple merge
+      if (geos.length === 1) return geos[0]
+      return mergeGeosSimple(geos)
+    } catch (e) {
+      URL.revokeObjectURL(url)
+      throw new Error(`模型解析失败：${e.message || '未知错误'}`)
     }
   }
+}
 
-  async loadFromURL(url) {
-    return this._loadGLTF(url)
+function mergeGeosSimple(geos) {
+  const T = window.THREE
+  const allPos = []
+  for (const geo of geos) {
+    let g = geo
+    if (g.index !== null) g = g.toNonIndexed()
+    const pos = g.attributes.position.array
+    for (let i = 0; i < pos.length; i++) allPos.push(pos[i])
   }
-
-  _loadGLTF(url) {
-    return new Promise((resolve, reject) => {
-      this.loader.load(
-        url,
-        (gltf) => {
-          const geometries = []
-          gltf.scene.traverse(child => {
-            if (child.isMesh && child.geometry) {
-              const cloned = child.geometry.clone()
-              cloned.applyMatrix4(child.matrixWorld)
-              geometries.push(cloned)
-            }
-          })
-          if (geometries.length === 0) {
-            reject(new Error('模型中没有找到可用的几何体。'))
-            return
-          }
-          const merged = geometries.length === 1
-            ? geometries[0]
-            : mergeBufGeos(geometries, false)
-          resolve(merged)
-        },
-        undefined,
-        (err) => reject(new Error(`模型加载失败：${err.message || '未知错误'}`))
-      )
-    })
-  }
-
-  createFileInput(onLoaded, onError) {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.glb,.gltf'
-    input.style.display = 'none'
-    input.addEventListener('change', async () => {
-      const file = input.files[0]
-      if (!file) return
-      try {
-        const geometry = await this.loadFromFile(file)
-        onLoaded(geometry, file.name)
-      } catch (e) {
-        onError?.(e.message)
-      }
-    })
-    return input
-  }
+  const merged = new T.BufferGeometry()
+  merged.setAttribute('position', new T.BufferAttribute(new Float32Array(allPos), 3))
+  return merged
 }

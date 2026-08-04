@@ -4,45 +4,45 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0a0f" />
-  <meta name="description" content="粒子交互AI教学 — 手势驱动的AR粒子与滤镜体验" />
-  <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
-  <link rel="manifest" href="public/manifest.webmanifest" />
   <title>粒子交互AI教学 | 长晴科技</title>
   <link rel="stylesheet" href="src/styles.css" />
+  <style>
+    #error-overlay {
+      position: fixed; top: 40px; left: 50%; transform: translateX(-50%); z-index: 500;
+      max-width: 600px; width: 90%;
+      padding: 16px; border-radius: 8px;
+      background: rgba(200,40,40,0.9); color: #fff;
+      font-size: 13px; font-family: monospace;
+      white-space: pre-wrap; word-break: break-all;
+      display: none;
+    }
+  </style>
 </head>
 <body>
   <div id="app">
-    <!-- 公司品牌栏 -->
     <div id="brand-bar">
       <span class="brand-logo">&#9670;</span>
       <span class="brand-divider"></span>
       <span class="brand-name-cn">上海长晴人工智能科技有限公司</span>
       <span class="brand-name-en">Changqing AI Technology (Shanghai) Co., Ltd.</span>
     </div>
-
-    <!-- 顶部导航 Tab -->
     <nav id="tab-bar">
       <button class="tab-btn active" data-module="particles">粒子模型</button>
       <button class="tab-btn" data-module="filters">摄像头滤镜</button>
       <button class="tab-btn" data-module="paintings">艺术画</button>
       <button id="param-toggle" class="icon-btn" title="参数面板">&#9881;</button>
     </nav>
-
-    <!-- 主渲染区 -->
     <div id="canvas-container">
       <canvas id="three-canvas" class="module-canvas"></canvas>
       <canvas id="camera-canvas" class="module-canvas hidden"></canvas>
       <video id="camera-video" playsinline autoplay muted style="display:none"></video>
     </div>
-
-    <!-- 加载/状态提示 -->
+    <div id="error-overlay"></div>
     <div id="status-toast" class="toast hidden"></div>
-    <div id="loading-overlay" class="loading-overlay hidden">
+    <div id="loading-overlay" class="loading-overlay">
       <div class="loading-spinner"></div>
-      <p id="loading-text">正在加载模型...</p>
+      <p id="loading-text">正在加载 Three.js 引擎...</p>
     </div>
-
-    <!-- 底部控制栏 -->
     <div id="bottom-bar">
       <div id="bar-left">
         <div id="preset-gallery" class="module-ui"></div>
@@ -51,7 +51,7 @@
       </div>
       <div id="bar-center">
         <span id="gesture-status" class="status-dot offline"></span>
-        <span id="status-text">就绪</span>
+        <span id="status-text">加载中...</span>
         <span id="fps-display" class="fps"></span>
       </div>
       <div id="bar-right">
@@ -64,26 +64,53 @@
         </div>
       </div>
     </div>
-
-    <!-- 参数面板 -->
     <div id="param-panel" class="param-panel hidden"></div>
   </div>
 
-  <!-- Three.js Import Map -->
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-    }
-  }
-  </script>
+  <script type="module">
+  // Capture errors early
+  window.onerror = function(msg, src, line, col, err) {
+    var el = document.getElementById('error-overlay');
+    el.style.display = 'block';
+    el.textContent = 'ERROR: ' + msg + '\n  at ' + src + ':' + line;
+    document.getElementById('loading-overlay').classList.add('hidden');
+  };
 
-  <script type="module" src="src/app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/public/sw.js').catch(function(){})
+  // Dynamic import with fallback URLs
+  async function loadThree() {
+    const urls = [
+      'https://unpkg.com/three@0.160.0/build/three.module.js',
+      'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+      'https://esm.sh/three@0.160.0',
+    ];
+    for (const url of urls) {
+      try {
+        return await import(url);
+      } catch(e) {
+        console.warn('Failed to load THREE from', url, e.message);
+      }
     }
+    throw new Error('无法加载 Three.js，请检查网络连接');
+  }
+
+  // Make THREE globally available for all modules
+  window.THREE = await loadThree();
+  console.log('Three.js loaded:', window.THREE.REVISION);
+
+  // Load addons
+  const addonBase = 'https://unpkg.com/three@0.160.0/examples/jsm/';
+  try {
+    window.THREE.OrbitControls = (await import(addonBase + 'controls/OrbitControls.js')).OrbitControls;
+    window.THREE.GLTFLoader = (await import(addonBase + 'loaders/GLTFLoader.js')).GLTFLoader;
+    console.log('Addons loaded');
+  } catch(e) {
+    console.warn('Addon load warning:', e.message);
+  }
+
+  // Now load the app
+  document.getElementById('loading-text').textContent = '正在初始化应用...';
+  await import('./src/app.js');
+  console.log('App module loaded');
   </script>
 </body>
 </html>

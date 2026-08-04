@@ -1,163 +1,122 @@
-// particleModel.js — 顶点提取 + THREE.Points 创建（发光软圆点 ShaderMaterial）
-import * as THREE from 'three'
+// particleModel.js — 顶点提取 + THREE.Points + 发光软圆点 ShaderMaterial
+const THREE = () => window.THREE
 
-const PARTICLE_VERTEX_SHADER = /* glsl */ `
-  attribute vec3 basePosition;
-  attribute vec3 scatterDir;
-  attribute float randomSeed;
+const VERT = /* glsl */ `
+attribute vec3 basePosition;
+attribute vec3 scatterDir;
+attribute float randomSeed;
+uniform float uProgress;
+uniform float uTime;
+uniform float uScatterDist;
+uniform float uNoiseAmp;
+uniform float uPointScale;
+varying float vAlpha;
+varying float vRandom;
+void main() {
+  vec3 noise = vec3(
+    sin(basePosition.y*12.0+uTime)*cos(basePosition.z*12.0+uTime*0.7),
+    cos(basePosition.x*12.0+uTime*0.8)*sin(basePosition.z*12.0+uTime*0.6),
+    sin(basePosition.x*12.0+uTime*0.5)*cos(basePosition.y*12.0+uTime*0.9)
+  )*uNoiseAmp*0.025;
+  float ep = uProgress*(0.85+randomSeed*0.3);
+  vec3 displaced = basePosition+scatterDir*ep*uScatterDist+noise;
+  vec4 mv = modelViewMatrix*vec4(displaced,1.0);
+  gl_Position = projectionMatrix*mv;
+  gl_PointSize = clamp(uPointScale*(280.0/-mv.z),0.5,12.0);
+  vAlpha = 1.0-ep*0.7;
+  vRandom = randomSeed;
+}`
 
-  uniform float uProgress;
-  uniform float uTime;
-  uniform float uScatterDist;
-  uniform float uNoiseAmp;
-  uniform float uPointScale;
-
-  varying float vAlpha;
-  varying float vRandom;
-
-  void main() {
-    vec3 noise = vec3(
-      sin(basePosition.y * 12.0 + uTime) * cos(basePosition.z * 12.0 + uTime * 0.7),
-      cos(basePosition.x * 12.0 + uTime * 0.8) * sin(basePosition.z * 12.0 + uTime * 0.6),
-      sin(basePosition.x * 12.0 + uTime * 0.5) * cos(basePosition.y * 12.0 + uTime * 0.9)
-    ) * uNoiseAmp * 0.025;
-
-    float effectiveProgress = uProgress * (0.85 + randomSeed * 0.3);
-    vec3 displaced = basePosition + scatterDir * effectiveProgress * uScatterDist + noise;
-    vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-    gl_PointSize = uPointScale * (280.0 / -mvPosition.z);
-    gl_PointSize = clamp(gl_PointSize, 0.5, 12.0);
-
-    // Fade alpha as particles scatter
-    vAlpha = 1.0 - effectiveProgress * 0.7;
-    vRandom = randomSeed;
-  }
-`
-
-const PARTICLE_FRAGMENT_SHADER = /* glsl */ `
-  uniform vec3 uColor;
-  uniform float uOpacity;
-
-  varying float vAlpha;
-  varying float vRandom;
-
-  void main() {
-    // Soft radial circle
-    float dist = length(gl_PointCoord - 0.5) * 2.0;
-    float alpha = 1.0 - smoothstep(0.15, 1.0, dist);
-    alpha *= alpha; // Sharper falloff for glow look
-    alpha *= vAlpha * uOpacity;
-
-    // Slight brightness variation per particle
-    alpha *= 0.75 + vRandom * 0.25;
-
-    // Bright center, fading edges
-    vec3 color = uColor * (1.0 + (1.0 - dist) * 0.6);
-
-    if (alpha < 0.01) discard;
-    gl_FragColor = vec4(color, alpha);
-  }
-`
+const FRAG = /* glsl */ `
+uniform vec3 uColor;
+uniform float uOpacity;
+varying float vAlpha;
+varying float vRandom;
+void main() {
+  float d = length(gl_PointCoord-0.5)*2.0;
+  float a = 1.0-smoothstep(0.15,1.0,d);
+  a*=a*vAlpha*uOpacity*(0.75+vRandom*0.25);
+  vec3 c = uColor*(1.0+(1.0-d)*0.6);
+  if(a<0.01)discard;
+  gl_FragColor=vec4(c,a);
+}`
 
 export class ParticleModel {
   constructor(geometry, options = {}) {
-    this.geometry = geometry
+    const T = THREE()
+    this._T = T
     this.pointScale = options.pointScale ?? 1.6
     this.scatterDist = options.scatterDist ?? 1.5
     this.noiseAmp = options.noiseAmp ?? 0.6
-    this.color = new THREE.Color(options.color ?? '#6c8cff')
+    this.color = new T.Color(options.color ?? '#6c8cff')
     this.opacity = options.opacity ?? 0.9
-
     this.points = null
     this.material = null
-    this._buildPoints()
+    this._build(geometry)
   }
 
-  _buildPoints() {
-    const geo = this._prepareGeometry(this.geometry)
-    const basePositions = new Float32Array(geo.attributes.position.array)
+  _build(geometry) {
+    const T = this._T
+    let geo = geometry
+    if (geo.index !== null) geo = geo.toNonIndexed()
+    const src = geo.attributes.position.array
+    const count = src.length / 3
 
-    // Compute centroid and scatter directions
+    // Downsample if needed
+    let step = 1
+    if (count > 80000) step = Math.ceil(count / 80000)
+    const n = Math.floor(count / step)
+    const basePos = new Float32Array(n * 3)
+    for (let i = 0; i < n; i++) {
+      basePos[i * 3] = src[i * step * 3]
+      basePos[i * 3 + 1] = src[i * step * 3 + 1]
+      basePos[i * 3 + 2] = src[i * step * 3 + 2]
+    }
+
+    // Centroid
     let cx = 0, cy = 0, cz = 0
-    for (let i = 0; i < basePositions.length; i += 3) {
-      cx += basePositions[i]
-      cy += basePositions[i + 1]
-      cz += basePositions[i + 2]
+    for (let i = 0; i < n; i++) {
+      cx += basePos[i * 3]; cy += basePos[i * 3 + 1]; cz += basePos[i * 3 + 2]
     }
-    const count = basePositions.length / 3
-    cx /= count; cy /= count; cz /= count
+    cx /= n; cy /= n; cz /= n
 
-    const scatterDirs = new Float32Array(basePositions.length)
-    const randomSeeds = new Float32Array(count)
-    for (let i = 0; i < count; i++) {
-      const px = basePositions[i * 3] - cx
-      const py = basePositions[i * 3 + 1] - cy
-      const pz = basePositions[i * 3 + 2] - cz
+    const dirs = new Float32Array(n * 3), seeds = new Float32Array(n)
+    for (let i = 0; i < n; i++) {
+      const px = basePos[i * 3] - cx, py = basePos[i * 3 + 1] - cy, pz = basePos[i * 3 + 2] - cz
       const len = Math.sqrt(px * px + py * py + pz * pz) || 1
-      scatterDirs[i * 3] = px / len
-      scatterDirs[i * 3 + 1] = py / len
-      scatterDirs[i * 3 + 2] = pz / len
-      randomSeeds[i] = Math.random()
+      dirs[i * 3] = px / len; dirs[i * 3 + 1] = py / len; dirs[i * 3 + 2] = pz / len
+      seeds[i] = Math.random()
     }
 
-    const pointGeo = new THREE.BufferGeometry()
-    pointGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(basePositions), 3))
-    pointGeo.setAttribute('basePosition', new THREE.BufferAttribute(basePositions, 3))
-    pointGeo.setAttribute('scatterDir', new THREE.BufferAttribute(scatterDirs, 3))
-    pointGeo.setAttribute('randomSeed', new THREE.BufferAttribute(randomSeeds, 1))
+    const pgeo = new T.BufferGeometry()
+    pgeo.setAttribute('position', new T.BufferAttribute(basePos.slice(), 3))
+    pgeo.setAttribute('basePosition', new T.BufferAttribute(basePos, 3))
+    pgeo.setAttribute('scatterDir', new T.BufferAttribute(dirs, 3))
+    pgeo.setAttribute('randomSeed', new T.BufferAttribute(seeds, 1))
 
-    this.material = new THREE.ShaderMaterial({
-      vertexShader: PARTICLE_VERTEX_SHADER,
-      fragmentShader: PARTICLE_FRAGMENT_SHADER,
+    this.material = new T.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
-        uProgress: { value: 0 },
-        uTime: { value: 0 },
-        uScatterDist: { value: this.scatterDist },
-        uNoiseAmp: { value: this.noiseAmp },
-        uPointScale: { value: this.pointScale },
-        uColor: { value: this.color },
+        uProgress: { value: 0 }, uTime: { value: 0 },
+        uScatterDist: { value: this.scatterDist }, uNoiseAmp: { value: this.noiseAmp },
+        uPointScale: { value: this.pointScale }, uColor: { value: this.color },
         uOpacity: { value: this.opacity },
       },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false, blending: T.AdditiveBlending,
     })
-
-    this.points = new THREE.Points(pointGeo, this.material)
+    this.points = new T.Points(pgeo, this.material)
   }
 
-  _prepareGeometry(geometry) {
-    // Indexed → non-indexed for per-vertex attributes
-    if (geometry.index !== null) {
-      geometry = geometry.toNonIndexed()
-    }
-    // Deduplicate vertices (optional — skip for now to keep count manageable)
-    return geometry
-  }
+  setProgress(v) { this.material.uniforms.uProgress.value = v }
+  setTime(v) { this.material.uniforms.uTime.value = v }
+  setColor(hex) { this.color.set(hex); this.material.uniforms.uColor.value = this.color }
 
-  setProgress(value) {
-    this.material.uniforms.uProgress.value = value
-  }
-
-  setTime(value) {
-    this.material.uniforms.uTime.value = value
-  }
-
-  setColor(hex) {
-    this.color.set(hex)
-    this.material.uniforms.uColor.value = this.color
-  }
-
-  updateParams({ pointScale, scatterDist, noiseAmp, opacity, color }) {
-    if (pointScale !== undefined) this.material.uniforms.uPointScale.value = pointScale
-    if (scatterDist !== undefined) this.material.uniforms.uScatterDist.value = scatterDist
-    if (noiseAmp !== undefined) this.material.uniforms.uNoiseAmp.value = noiseAmp
-    if (opacity !== undefined) this.material.uniforms.uOpacity.value = opacity
-    if (color !== undefined) {
-      this.color.set(color)
-      this.material.uniforms.uColor.value = this.color
-    }
+  updateParams(p) {
+    if (p.pointScale !== undefined) this.material.uniforms.uPointScale.value = p.pointScale
+    if (p.scatterDist !== undefined) this.material.uniforms.uScatterDist.value = p.scatterDist
+    if (p.noiseAmp !== undefined) this.material.uniforms.uNoiseAmp.value = p.noiseAmp
+    if (p.opacity !== undefined) this.material.uniforms.uOpacity.value = p.opacity
+    if (p.color !== undefined) { this.color.set(p.color); this.material.uniforms.uColor.value = this.color }
   }
 
   dispose() {
