@@ -5,14 +5,11 @@ import { PAINTING_PRESETS } from './paintingPresets.js'
 import { clamp } from '../../utils/math.js'
 
 export class PaintingModule {
-  constructor(container, canvas) {
+  constructor(container, renderer) {
     const T = window.THREE
     this.container = container
-    this.canvas = canvas
 
-    this.renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-    this._initSize(container)
+    this.renderer = renderer
     this.renderer.outputColorSpace = T.SRGBColorSpace
     this.renderer.toneMapping = T.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.0
@@ -174,7 +171,7 @@ export class PaintingModule {
     window.removeEventListener('resize', this._onResize)
     if (this._customObjectUrl) URL.revokeObjectURL(this._customObjectUrl)
     this.paintingParticles?.dispose()
-    this.renderer?.dispose()
     this.controls?.dispose?.()
+    // Renderer is shared — do NOT dispose it here
   }
 }

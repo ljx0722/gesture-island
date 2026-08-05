@@ -32,6 +32,8 @@ export class ParticleAnimation {
     this.model.setTime(this.elapsed)
   }
 
+  setHandVelocity(v) { this.model.setHandVelocity(v) }
+
   setTargetProgress(value) {
     this.targetProgress = clamp(value, 0, 1)
   }

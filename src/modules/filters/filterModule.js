@@ -5,6 +5,7 @@ import { PatchRenderer } from './patchRenderer.js'
 import { FILTER_APPLIERS } from './filterEffects.js'
 import { FILTER_PRESETS, getFilterById } from './filterPresets.js'
 import { drawMirrored } from '../../utils/canvas.js'
+import { HAND_CONNECTIONS } from '../../tracking/handFeatures.js'
 
 export class FilterModule {
   constructor(displayCanvas, videoElement) {
@@ -25,6 +26,9 @@ export class FilterModule {
     this._sourceCtx = this._sourceCanvas.getContext('2d', { willReadFrequently: true })
     this._processCanvas = document.createElement('canvas')
     this._processCtx = this._processCanvas.getContext('2d', { willReadFrequently: true })
+    this._downCanvas = document.createElement('canvas')
+    this._downCtx = this._downCanvas.getContext('2d', { willReadFrequently: true })
+    this._demoCanvas = document.createElement('canvas')
 
     // Load default params
     this._loadDefaultParams()
@@ -120,52 +124,85 @@ export class FilterModule {
     const w = this.displayCanvas.width || this.displayCanvas.clientWidth
     const h = this.displayCanvas.height || this.displayCanvas.clientHeight
 
-    // Resize if needed
     if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
       this.displayCanvas.width = w
       this.displayCanvas.height = h
-      this._sourceCanvas.width = w
-      this._sourceCanvas.height = h
-      this._processCanvas.width = w
-      this._processCanvas.height = h
     }
 
     const ctx = this.displayCtx
 
-    // Draw mirrored camera frame to source canvas
+    // Downscale processing for performance (max 640px wide)
+    const MAX_PROC = 640
+    const scale = Math.min(1, MAX_PROC / Math.max(w, h))
+    const pw = Math.max(1, Math.round(w * scale))
+    const ph = Math.max(1, Math.round(h * scale))
+
+    // Resize offscreen canvases
+    this._downCanvas.width = pw; this._downCanvas.height = ph
+    this._sourceCanvas.width = w; this._sourceCanvas.height = h
+    this._processCanvas.width = pw; this._processCanvas.height = ph
+
     drawMirrored(this._sourceCtx, video, w, h)
 
-    // Process segmentation mask
     let processedMask = false
     if (mask && mask.data && !this.demoMode) {
       this.maskProcessor.process(mask.data, mask.width, mask.height)
       processedMask = true
     }
 
-    // Generate patches
     let patches = []
-    if (leftHand && rightHand) {
+    const hasBothHands = leftHand && rightHand
+    const hasOneHand = leftHand || rightHand
+    if (hasBothHands) {
       patches = this.patchRenderer.generateQuads(leftHand, rightHand, w, h)
     }
 
-    // Clear display
     ctx.clearRect(0, 0, w, h)
-
-    // Draw source frame as background
     ctx.drawImage(this._sourceCanvas, 0, 0, w, h)
 
-    if (patches.length === 0) {
-      // No hands: just show camera
+    const applyFilter = FILTER_APPLIERS[this.currentFilterId]
+
+    // Single-hand: fullscreen filter fallback
+    if (!hasBothHands && hasOneHand && applyFilter) {
+      // Downscale source to process size
+      this._downCtx.drawImage(this._sourceCanvas, 0, 0, pw, ph)
+      const sourceData = this._downCtx.getImageData(0, 0, pw, ph)
+      const filteredData = this._downCtx.createImageData(pw, ph)
+      for (let py = 0; py < ph; py++) {
+        for (let px = 0; px < pw; px++) {
+          const idx = (py * pw + px) * 4
+          const wx = Math.round(px / scale), wy = Math.round(py / scale)
+          let ma = 255
+          if (processedMask) ma = this.maskProcessor.getAlphaAt(wx, wy)
+          const r = sourceData.data[idx], g = sourceData.data[idx + 1], b = sourceData.data[idx + 2]
+          if (ma > 10) {
+            const result = applyFilter(r, g, b, wx, wy, ma, this.preparedFilterParams, this.time)
+            filteredData.data[idx] = result.r
+            filteredData.data[idx + 1] = result.g
+            filteredData.data[idx + 2] = result.b
+            filteredData.data[idx + 3] = 255
+          } else {
+            filteredData.data[idx] = r
+            filteredData.data[idx + 1] = g
+            filteredData.data[idx + 2] = b
+            filteredData.data[idx + 3] = 255
+          }
+        }
+      }
+      this._processCtx.putImageData(filteredData, 0, 0)
+      ctx.drawImage(this._processCanvas, 0, 0, pw, ph, 0, 0, w, h)
       this._drawHandSkeletons(ctx, leftHand, rightHand, w, h)
       return
     }
 
-    const applyFilter = FILTER_APPLIERS[this.currentFilterId]
+    if (patches.length === 0) {
+      this._drawHandSkeletons(ctx, leftHand, rightHand, w, h)
+      return
+    }
 
     for (const patch of patches) {
       if (this.patchRenderer.isDegenerate(patch.vertices)) continue
 
-      // Get bounding box of patch
       const xs = patch.vertices.map(v => v.x), ys = patch.vertices.map(v => v.y)
       const bx = Math.max(0, Math.floor(Math.min(...xs)))
       const by = Math.max(0, Math.floor(Math.min(...ys)))
@@ -173,36 +210,30 @@ export class FilterModule {
       const bh = Math.min(h - by, Math.ceil(Math.max(...ys) - by))
       if (bw <= 0 || bh <= 0) continue
 
-      // Get image data from source within bounding box
-      const sourceData = this._sourceCtx.getImageData(bx, by, bw, bh)
+      // Process at downscaled resolution for performance
+      const sbx = Math.round(bx * scale), sby = Math.round(by * scale)
+      const sbw = Math.max(1, Math.round(bw * scale)), sbh = Math.max(1, Math.round(bh * scale))
 
-      // Apply filter only to foreground pixels
-      const filteredData = this._sourceCtx.createImageData(bw, bh)
-      for (let py = 0; py < bh; py++) {
-        for (let px = 0; px < bw; px++) {
-          const idx = (py * bw + px) * 4
-          const r = sourceData.data[idx]
-          const g = sourceData.data[idx + 1]
-          const b = sourceData.data[idx + 2]
-          const a = sourceData.data[idx + 3]
+      this._downCtx.drawImage(this._sourceCanvas, bx, by, bw, bh, 0, 0, sbw, sbh)
+      const sourceData = this._downCtx.getImageData(0, 0, sbw, sbh)
+      const filteredData = this._downCtx.createImageData(sbw, sbh)
 
-          // Check mask
+      for (let py = 0; py < sbh; py++) {
+        for (let px = 0; px < sbw; px++) {
+          const idx = (py * sbw + px) * 4
+          const wx = bx + Math.round(px / scale), wy = by + Math.round(py / scale)
+          const r = sourceData.data[idx], g = sourceData.data[idx + 1], b = sourceData.data[idx + 2], a = sourceData.data[idx + 3]
           let maskAlpha = 255
           if (processedMask || this.demoMode) {
-            const wx = bx + px, wy = by + py
-            maskAlpha = processedMask ? this.maskProcessor.getAlphaAt(wx, wy) : (this.demoMode ? 200 : 255)
+            maskAlpha = processedMask ? this.maskProcessor.getAlphaAt(wx, wy) : 200
           }
-
-          // Only filter foreground (person)
           if (maskAlpha > 10 && applyFilter) {
-            const p = this.preparedFilterParams
-            const result = applyFilter(r, g, b, bx + px, by + py, maskAlpha, p, this.time)
+            const result = applyFilter(r, g, b, wx, wy, maskAlpha, this.preparedFilterParams, this.time)
             filteredData.data[idx] = result.r
             filteredData.data[idx + 1] = result.g
             filteredData.data[idx + 2] = result.b
             filteredData.data[idx + 3] = a
           } else {
-            // Background: keep original
             filteredData.data[idx] = r
             filteredData.data[idx + 1] = g
             filteredData.data[idx + 2] = b
@@ -211,28 +242,18 @@ export class FilterModule {
         }
       }
 
-      // Draw filtered region clipped to patch shape
-      this.patchRenderer.drawPatchClip(ctx, patch.vertices)
       this._processCtx.putImageData(filteredData, 0, 0)
-      ctx.drawImage(this._processCanvas, 0, 0, bw, bh, bx, by, bw, bh)
+      this.patchRenderer.drawPatchClip(ctx, patch.vertices)
+      ctx.drawImage(this._processCanvas, 0, 0, sbw, sbh, bx, by, bw, bh)
       ctx.restore()
-
-      // Draw soft edge outline
       this.patchRenderer.drawPatchEdge(ctx, patch.vertices)
     }
 
-    // Draw hand skeletons on top
     this._drawHandSkeletons(ctx, leftHand, rightHand, w, h)
   }
 
   _drawHandSkeletons(ctx, leftHand, rightHand, w, h) {
-    const toPixel = (pt) => ({ x: (1 - pt.x) * w, y: pt.y * h }) // Mirror back
-
-    const connections = [
-      [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
-      [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16],
-      [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
-    ]
+    const toPixel = (pt) => ({ x: (1 - pt.x) * w, y: pt.y * h })
 
     for (const hand of [leftHand, rightHand]) {
       if (!hand?.landmarks) continue
@@ -241,7 +262,7 @@ export class FilterModule {
       ctx.strokeStyle = 'rgba(255,255,255,0.4)'
       ctx.lineWidth = 1.5
       ctx.beginPath()
-      for (const [a, b] of connections) {
+      for (const [a, b] of HAND_CONNECTIONS) {
         const pa = toPixel(hand.landmarks[a])
         const pb = toPixel(hand.landmarks[b])
         ctx.moveTo(pa.x, pa.y)
@@ -379,11 +400,10 @@ export class FilterModule {
       }
 
       this.patchRenderer.drawPatchClip(ctx, patch.vertices)
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = bw; tempCanvas.height = bh
-      const tempCtx = tempCanvas.getContext('2d')
+      this._demoCanvas.width = bw; this._demoCanvas.height = bh
+      const tempCtx = this._demoCanvas.getContext('2d')
       tempCtx.putImageData(data, 0, 0)
-      ctx.drawImage(tempCanvas, 0, 0, bw, bh, bx, by, bw, bh)
+      ctx.drawImage(this._demoCanvas, 0, 0, bw, bh, bx, by, bw, bh)
       ctx.restore()
 
       this.patchRenderer.drawPatchEdge(ctx, patch.vertices)

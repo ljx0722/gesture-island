@@ -3,20 +3,20 @@ import { ParticleModel } from './particleModel.js'
 import { ParticleAnimation } from './particleAnimation.js'
 import { ParticleUploader } from './particleUploader.js'
 import { PRESETS } from './particlePresets.js'
+import { HAND_CONNECTIONS } from '../../tracking/handFeatures.js'
 
 export class ParticleModule {
-  constructor(container, canvas) {
+  constructor(container, renderer) {
     const T = window.THREE
     this._T = T
 
-    this.renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-    this._initSize(container)
+    this.renderer = renderer
     this.renderer.outputColorSpace = T.SRGBColorSpace
     this.renderer.toneMapping = T.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.2
 
     this.scene = new T.Scene()
+    this.scene.background = new T.Color('#0a0a0f')
     this.camera = new T.PerspectiveCamera(55, this._safeW(container) / Math.max(1, this._safeH(container)), 0.1, 50)
     this.camera.position.set(0, 0.3, 5)
 
@@ -39,6 +39,7 @@ export class ParticleModule {
     this.scene.add(this.group)
 
     this._animId = 0; this._lastTime = 0; this._gestureOpenness = 0; this._running = false
+    this._handPos = null; this._handVelocity = 0
 
     this.params = {
       pointScale: 1.6, scatterDist: 1.5, noiseAmp: 0.6,
@@ -58,7 +59,6 @@ export class ParticleModule {
 
   _safeW(c) { return c.clientWidth || window.innerWidth || 1024 }
   _safeH(c) { return c.clientHeight || window.innerHeight || 768 }
-  _initSize(c) { this.renderer.setSize(this._safeW(c), this._safeH(c), false) }
   resize() { this._onResize() }
 
   async init() { this._loadPreset(0) }
@@ -87,6 +87,18 @@ export class ParticleModule {
 
   onGestureFrame(frameData) {
     this._gestureOpenness = frameData.openness ?? 0
+    const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
+    if (hand?.palmCenter) {
+      if (this._handPos) {
+        const dx = hand.palmCenter.x - this._handPos.x
+        const dy = hand.palmCenter.y - this._handPos.y
+        this._handVelocity = Math.sqrt(dx * dx + dy * dy) * 10
+      }
+      this._handPos = { x: hand.palmCenter.x, y: hand.palmCenter.y }
+    } else {
+      this._handVelocity *= 0.9
+    }
+    this.animation?.setHandVelocity(this._handVelocity)
   }
 
   setGestureOpenness(value) { this._gestureOpenness = value }
@@ -140,7 +152,7 @@ export class ParticleModule {
     this.stop()
     window.removeEventListener('resize', this._onResize)
     this.particleModel?.dispose()
-    this.renderer?.dispose()
     this.controls?.dispose?.()
+    // Renderer is shared — do NOT dispose it here
   }
 }

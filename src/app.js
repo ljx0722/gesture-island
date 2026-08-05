@@ -9,6 +9,10 @@ import { PRESETS } from './modules/particles/particlePresets.js'
 import { PAINTING_PRESETS } from './modules/paintings/paintingPresets.js'
 import { FILTER_PRESETS } from './modules/filters/filterPresets.js'
 import { preloadHandTracker } from './tracking/handTracker.js'
+import { HAND_CONNECTIONS } from './tracking/handFeatures.js'
+import { AudioManager } from './ui/audioManager.js'
+import { Onboarding } from './ui/onboarding.js'
+import { ChallengeMode } from './ui/challengeMode.js'
 
 // DOM refs
 const container = document.getElementById('canvas-container')
@@ -29,12 +33,16 @@ const handPreviewCanvas = document.getElementById('hand-preview-canvas')
 
 // State
 let currentModule = 'particles'
+let sharedRenderer = null
 let pipeline = null
 let particleModule = null
 let filterModule = null
 let paintingModule = null
 let statusDisplay = null
 let paramPanel = null
+let audioManager = null
+let onboarding = null
+let challengeMode = null
 let cameraActive = false
 let demoActive = false
 let moduleInitialized = { particles: false, filters: false, paintings: false }
@@ -45,6 +53,10 @@ let lastTime = 0
 async function init() {
   statusDisplay = new StatusDisplay()
   paramPanel = new ParamPanel()
+  audioManager = new AudioManager()
+  onboarding = new Onboarding()
+  challengeMode = new ChallengeMode()
+  challengeMode.setAudio(audioManager)
 
   // Bind events FIRST — before any module loading can fail
   _bindEvents()
@@ -52,6 +64,26 @@ async function init() {
 
   // Create pipeline
   pipeline = new Pipeline({ videoElement: videoEl, smoothingAlpha: parseFloat(smoothSlider.value) })
+
+  // Create shared WebGL renderer
+  const T = window.THREE
+  sharedRenderer = new T.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true })
+  sharedRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+  const cw = container.clientWidth || window.innerWidth || 1024
+  const ch = container.clientHeight || window.innerHeight || 768
+  sharedRenderer.setSize(cw, ch, false)
+
+  // WebGL context loss handling
+  threeCanvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault()
+    console.warn('WebGL context lost — pausing render')
+    particleModule?.stop()
+    paintingModule?.stop()
+  })
+  threeCanvas.addEventListener('webglcontextrestored', () => {
+    console.log('WebGL context restored — reloading')
+    location.reload()
+  })
 
   // Init particle module (default tab)
   try {
@@ -71,6 +103,11 @@ async function init() {
 
   // Preload hand tracker in background so camera starts faster later
   preloadHandTracker().catch(() => {})
+
+  // Show onboarding for first-time visitors
+  if (!onboarding.done) {
+    setTimeout(() => onboarding.show(), 500)
+  }
 }
 
 function resizeCanvas() {
@@ -87,7 +124,7 @@ function resizeCanvas() {
 }
 
 async function _initParticlesModule() {
-  particleModule = new ParticleModule(container, threeCanvas)
+  particleModule = new ParticleModule(container, sharedRenderer)
   await particleModule.init()
   particleModule.start()
   moduleInitialized.particles = true
@@ -96,7 +133,7 @@ async function _initParticlesModule() {
 }
 
 async function _initPaintingsModule() {
-  paintingModule = new PaintingModule(container, threeCanvas)
+  paintingModule = new PaintingModule(container, sharedRenderer)
   await paintingModule.init()
   paintingModule.start()
   moduleInitialized.paintings = true
@@ -119,6 +156,9 @@ function _startRenderLoop() {
     const dt = Math.min((now - lastTime) / 1000, 0.1)
     lastTime = now
     statusDisplay.updateFPS()
+
+    // Challenge mode timeout check
+    if (challengeMode?.active) challengeMode.checkTimeout(now)
 
     // Demo mode filter rendering
     if (currentModule === 'filters' && filterModule && demoActive && !cameraActive) {
@@ -145,6 +185,8 @@ function _handleGesture(frameData) {
     lastGestureType = gesture
     const labels = { open: '张开手掌', fist: '握拳', pinch: '捏合', point: '指向', none: '待机' }
     statusDisplay.setHandStatus(frameData.handCount, labels[gesture] || '')
+    if (gesture !== 'none') audioManager?.gestureDetected()
+    challengeMode?.onGesture(gesture, frameData.openness ?? 0)
   }
 
   if (currentModule === 'particles' && particleModule) {
@@ -263,11 +305,6 @@ function _renderHandPreview(frameData) {
   }
 
   // Draw hand skeletons
-  const connections = [
-    [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
-    [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16],
-    [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
-  ]
   const toPixel = (pt) => ({ x: pt.x * pw, y: pt.y * ph })
 
   for (const hand of [frameData.leftHand, frameData.rightHand]) {
@@ -276,7 +313,7 @@ function _renderHandPreview(frameData) {
     ctx.strokeStyle = 'rgba(108,140,255,0.6)'
     ctx.lineWidth = 1.2
     ctx.beginPath()
-    for (const [a, b] of connections) {
+    for (const [a, b] of HAND_CONNECTIONS) {
       const pa = toPixel(hand.landmarks[a])
       const pb = toPixel(hand.landmarks[b])
       ctx.moveTo(pa.x, pa.y)
@@ -298,9 +335,17 @@ function _renderHandPreview(frameData) {
 async function switchModule(moduleId) {
   if (currentModule === moduleId) return
 
-  // Stop inactive Three.js render loops
-  if (currentModule === 'particles') particleModule?.stop()
-  if (currentModule === 'paintings') paintingModule?.stop()
+  // Stop inactive Three.js render loops and dispose GPU resources
+  if (currentModule === 'particles') {
+    particleModule?.stop()
+    particleModule?.dispose()
+    moduleInitialized.particles = false
+  }
+  if (currentModule === 'paintings') {
+    paintingModule?.stop()
+    paintingModule?.dispose()
+    moduleInitialized.paintings = false
+  }
 
   threeCanvas.classList.add('hidden')
   cameraCanvas.classList.add('hidden')
@@ -480,6 +525,10 @@ function _renderPresetGallery() {
     input.addEventListener('change', async () => {
       const file = input.files[0]
       if (!file) return
+      if (file.size > 20 * 1024 * 1024) {
+        statusDisplay.showError('模型文件不能超过 20MB，请换一个小一点的模型')
+        return
+      }
       try {
         statusDisplay.showLoading('正在解析模型...')
         await particleModule.uploadModel(file)
@@ -642,6 +691,41 @@ function _randomizeCustomFilter() {
   statusDisplay.showToast('随机魔法已生成', 'info', 1200)
 }
 
+// ── Screenshot ──
+function takeScreenshot() {
+  const canvas = currentModule === 'filters' ? cameraCanvas : threeCanvas
+  const tmp = document.createElement('canvas')
+  tmp.width = canvas.width || canvas.clientWidth
+  tmp.height = canvas.height || canvas.clientHeight
+  const ctx = tmp.getContext('2d')
+  ctx.drawImage(canvas, 0, 0)
+  const link = document.createElement('a')
+  link.download = `gesture-island-${Date.now()}.png`
+  link.href = tmp.toDataURL('image/png')
+  link.click()
+  audioManager?.screenshotSound()
+  statusDisplay.showToast('截图已保存', 'info', 1500)
+}
+
+function _updateChallengeUI() {
+  const bar = document.getElementById('challenge-bar')
+  if (!bar) return
+  if (challengeMode?.active) {
+    bar.classList.remove('hidden')
+    document.getElementById('btn-challenge').textContent = '挑战中'
+    document.getElementById('btn-challenge').classList.add('on')
+  } else {
+    bar.classList.add('hidden')
+    document.getElementById('challenge-score').textContent = '得分: 0'
+    document.getElementById('challenge-combo').textContent = ''
+    document.getElementById('challenge-gesture-icon').textContent = ''
+    document.getElementById('challenge-gesture-label').textContent = ''
+    document.getElementById('challenge-timer').textContent = ''
+    document.getElementById('btn-challenge').textContent = '挑战'
+    document.getElementById('btn-challenge').classList.remove('on')
+  }
+}
+
 // ── Events ──
 function _bindEvents() {
   tabBtns.forEach(btn => {
@@ -657,17 +741,63 @@ function _bindEvents() {
 
   btnDemo.addEventListener('click', () => toggleDemo())
   btnReset.addEventListener('click', () => reset())
+  document.getElementById('btn-screenshot')?.addEventListener('click', () => takeScreenshot())
+  document.getElementById('btn-mute')?.addEventListener('click', () => {
+    const muted = audioManager?.toggle()
+    document.getElementById('btn-mute').textContent = muted ? '静音' : '声音'
+  })
+  document.getElementById('btn-challenge')?.addEventListener('click', () => {
+    if (challengeMode?.active) { challengeMode.stop(); _updateChallengeUI(); return }
+    challengeMode?.start('easy')
+    challengeMode.onScoreChange((score, combo, maxCombo) => {
+      document.getElementById('challenge-score').textContent = `得分: ${score}`
+      const comboEl = document.getElementById('challenge-combo')
+      comboEl.textContent = combo >= 3 ? `Combo x${combo}!` : ''
+    })
+    challengeMode.onRoundChange((gesture, label, icon, time) => {
+      document.getElementById('challenge-gesture-icon').textContent = icon
+      document.getElementById('challenge-gesture-label').textContent = `请做: ${label}`
+      document.getElementById('challenge-timer').textContent = `${(time / 1000).toFixed(1)}s`
+    })
+    _updateChallengeUI()
+    statusDisplay.showToast('挑战开始！按手势提示做动作', 'info', 2000)
+  })
+  document.getElementById('btn-challenge-stop')?.addEventListener('click', () => {
+    challengeMode?.stop()
+    _updateChallengeUI()
+    statusDisplay.showToast('挑战已结束', 'info', 1500)
+  })
 
   smoothSlider.addEventListener('input', () => {
     pipeline?.setSmoothingAlpha(parseFloat(smoothSlider.value))
   })
 
+  document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    const html = document.documentElement
+    const current = html.getAttribute('data-theme')
+    html.setAttribute('data-theme', current === 'light' ? 'dark' : 'light')
+    document.getElementById('theme-toggle').textContent = current === 'light' ? '☀' : '☾'
+  })
+
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return
     switch (e.key) {
       case '1': switchModule('particles'); break
       case '2': switchModule('filters'); break
       case '3': switchModule('paintings'); break
+      case 'ArrowLeft':
+        if (currentModule === 'particles') { particleModule?.prevPreset(); _renderPresetGallery(); _showParamPanel('particles'); audioManager?.presetSwitch() }
+        else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderFilterSelector(); _showParamPanel('filters'); audioManager?.filterSwitch() }
+        else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderPaintingSelector(); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        break
+      case 'ArrowRight':
+        if (currentModule === 'particles') { particleModule?.nextPreset(); _renderPresetGallery(); _showParamPanel('particles'); audioManager?.presetSwitch() }
+        else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderFilterSelector(); _showParamPanel('filters'); audioManager?.filterSwitch() }
+        else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderPaintingSelector(); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        break
+      case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) btnCamera.click(); break
+      case '0': if (!e.ctrlKey && !e.metaKey) reset(); break
+      case 's': case 'S': if (!e.ctrlKey && !e.metaKey) takeScreenshot(); break
       case 'd': case 'D': if (!e.ctrlKey && !e.metaKey) toggleDemo(); break
       case 'f': case 'F': if (!e.ctrlKey && !e.metaKey) {
         if (document.fullscreenElement) document.exitFullscreen()
@@ -676,7 +806,12 @@ function _bindEvents() {
       }
       case 'r': case 'R': if (!e.ctrlKey && !e.metaKey && currentModule === 'filters') _randomizeCustomFilter(); break
       case 'u': case 'U': if (!e.ctrlKey && !e.metaKey && currentModule === 'paintings') document.getElementById('upload-painting-btn')?.click(); break
-      case 'Escape': if (demoActive) toggleDemo(); break
+      case 'm': case 'M': if (!e.ctrlKey && !e.metaKey) { const muted = audioManager?.toggle(); statusDisplay.showToast(muted ? '已静音' : '已开启声音', 'info', 1000) } break
+      case '?': {
+        if (onboarding) { onboarding._step = 0; onboarding._done = false; onboarding.show() }
+        break
+      }
+      case 'Escape': if (demoActive) toggleDemo(); else if (challengeMode?.active) { challengeMode.stop(); _updateChallengeUI(); statusDisplay.showToast('挑战已结束', 'info', 1500) } break
     }
   })
 

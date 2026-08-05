@@ -1,16 +1,6 @@
-// handTracker.js — MediaPipe HandLandmarker 封装
-// Uses scale-invariant handFeatures for openness calculation
+// handTracker.js — MediaPipe HandLandmarker 封装 (shared bootstrap)
 import { handFeatures } from './handFeatures.js'
-
-let HandLandmarker = null
-let FilesetResolver = null
-let instance = null
-
-const HAND_CONNECTIONS = [
-  [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
-  [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16],
-  [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
-]
+import { preloadMediaPipe, getMediaPipeModules } from './mediapipeBootstrap.js'
 
 const PALM_INDICES = [0, 5, 9, 13, 17]
 
@@ -25,33 +15,11 @@ function normalizeHandedness(label) {
   return (v === 'left' || v === 'right') ? v : 'unknown'
 }
 
-// Preload promise — call early so CDN/WASM downloads overlap with page init
-let _preloadPromise = null
-
 export function preloadHandTracker() {
-  if (!_preloadPromise) {
-    _preloadPromise = (async () => {
-      if (FilesetResolver) return true
-      try {
-        const m = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
-        FilesetResolver = m.FilesetResolver
-        HandLandmarker = m.HandLandmarker
-      } catch {
-        try {
-          const m = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
-          FilesetResolver = m.FilesetResolver
-          HandLandmarker = m.HandLandmarker
-        } catch {
-          // Silently fail — createHandTracker will retry when user clicks camera
-        }
-      }
-      return true
-    })()
-  }
-  return _preloadPromise
+  return preloadMediaPipe().catch(() => {})
 }
 
-export { HAND_CONNECTIONS, PALM_INDICES }
+export { PALM_INDICES }
 
 export async function createHandTracker(options = {}) {
   const {
@@ -64,28 +32,8 @@ export async function createHandTracker(options = {}) {
     onProgress = null,
   } = options
 
-  // Wait for preload if started, then load inline if still not ready
-  if (!FilesetResolver || !HandLandmarker) {
-    if (_preloadPromise) {
-      try { await _preloadPromise } catch { /* preload failed, will load inline */ }
-    }
-    if (!FilesetResolver || !HandLandmarker) {
-      try {
-        onProgress?.({ stage: 'hand', progress: 0.2, text: '正在加载MediaPipe WASM...' })
-        const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
-        FilesetResolver = visionModule.FilesetResolver
-        HandLandmarker = visionModule.HandLandmarker
-      } catch {
-        try {
-          const visionModule = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
-          FilesetResolver = visionModule.FilesetResolver
-          HandLandmarker = visionModule.HandLandmarker
-        } catch (e2) {
-          throw new Error(`手势模型加载失败：无法从CDN加载MediaPipe库。请检查网络连接后重试。`)
-        }
-      }
-    }
-  }
+  onProgress?.({ stage: 'hand', progress: 0.2, text: '正在加载MediaPipe WASM...' })
+  const { FilesetResolver, HandLandmarker } = await getMediaPipeModules()
 
   onProgress?.({ stage: 'hand', progress: 0.5, text: '正在初始化手势识别引擎...' })
   const vision = await FilesetResolver.forVisionTasks(wasmPath)
@@ -122,14 +70,12 @@ export async function createHandTracker(options = {}) {
       pinchPoint: average([points[4], points[8]]),
       openness: 0,
     }
-    // Scale-invariant openness via handFeatures
     hand.openness = handFeatures(hand).openness
     return hand
   }
 
   return {
     setIdentityTracker(tracker) { identityTracker = tracker },
-
     detect(video, timestamp) {
       const result = landmarker.detectForVideo(video, timestamp)
       const detections = result.landmarks.map((landmarks, i) =>
@@ -139,10 +85,6 @@ export async function createHandTracker(options = {}) {
         : detections.map((h, i) => ({ ...h, id: `camera-hand-${i + 1}` }))
       return { timestamp, hands }
     },
-
-    close() {
-      landmarker?.close()
-      landmarker = null
-    },
+    close() { landmarker?.close(); landmarker = null },
   }
 }

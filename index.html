@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0a0f" />
-  <title>粒子交互AI教学 | 长晴科技</title>
+  <title>长晴手势实验岛</title>
   <link rel="stylesheet" href="src/styles.css" />
   <style>
     #fatal-error {
@@ -17,6 +17,7 @@
   </style>
 </head>
 <body>
+  <noscript><div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2e;color:#fff;padding:24px 32px;border-radius:8px;font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;text-align:center;z-index:9999;">本应用需要 JavaScript 支持，请在浏览器设置中启用 JavaScript。</div></noscript>
   <div id="fatal-error"><b>加载失败</b><span id="fatal-msg"></span></div>
 
   <div id="app" style="display:none">
@@ -25,6 +26,7 @@
       <span class="brand-divider"></span>
       <span class="brand-name-cn">上海长晴人工智能科技有限公司</span>
       <span class="brand-name-en">Changqing AI Technology (Shanghai) Co., Ltd.</span>
+      <button id="theme-toggle" title="切换亮色/暗色主题">&#9788;</button>
     </div>
     <nav id="tab-bar">
       <button class="tab-btn active" data-module="particles">粒子魔法</button>
@@ -65,13 +67,23 @@
         <button id="btn-camera" class="ctrl-btn">启动摄像头</button>
         <button id="btn-demo" class="ctrl-btn">演示模式</button>
         <button id="btn-reset" class="ctrl-btn">重置</button>
+        <button id="btn-screenshot" class="ctrl-btn" title="截图 (S)">拍照</button>
+        <button id="btn-mute" class="ctrl-btn" title="静音 (M)">声音</button>
+        <button id="btn-challenge" class="ctrl-btn" title="挑战模式">挑战</button>
         <div class="slider-group">
           <label for="smoothing-slider">平滑度</label>
           <input type="range" id="smoothing-slider" min="0.1" max="0.9" step="0.05" value="0.35" />
         </div>
       </div>
     </div>
-    <div id="param-panel" class="param-panel hidden"></div>
+    <div id="challenge-bar" class="challenge-bar hidden">
+      <span id="challenge-gesture-icon"></span>
+      <span id="challenge-gesture-label"></span>
+      <span id="challenge-score">得分: 0</span>
+      <span id="challenge-combo"></span>
+      <span id="challenge-timer"></span>
+      <button id="btn-challenge-stop" class="ctrl-btn">结束挑战</button>
+    </div>
   </div>
 
   <!-- Step 1: Load THREE.js (classic script, sets window.THREE) -->
@@ -116,13 +128,23 @@
     try {
       await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/controls/OrbitControls.js');
     } catch(e) {
-      console.warn('OrbitControls load failed (non-critical):', e.message);
+      console.warn('OrbitControls primary CDN failed, trying fallback:', e.message);
+      try {
+        await loadScript('https://unpkg.com/three@0.157.0/examples/js/controls/OrbitControls.js');
+      } catch(e2) {
+        console.warn('OrbitControls load failed (non-critical):', e2.message);
+      }
     }
 
     try {
       await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/loaders/GLTFLoader.js');
     } catch(e) {
-      console.warn('GLTFLoader load failed (model upload disabled):', e.message);
+      console.warn('GLTFLoader primary CDN failed, trying fallback:', e.message);
+      try {
+        await loadScript('https://unpkg.com/three@0.157.0/examples/js/loaders/GLTFLoader.js');
+      } catch(e2) {
+        console.warn('GLTFLoader load failed (model upload disabled):', e2.message);
+      }
     }
 
     // Verify THREE is loaded
