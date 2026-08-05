@@ -13,6 +13,7 @@ import { HAND_CONNECTIONS } from './tracking/handFeatures.js'
 import { AudioManager } from './ui/audioManager.js'
 import { Onboarding } from './ui/onboarding.js'
 import { ChallengeMode } from './ui/challengeMode.js'
+import { GestureAnimator } from './ui/gestureAnimator.js'
 
 // DOM refs
 const container = document.getElementById('canvas-container')
@@ -31,8 +32,9 @@ const paintingSelector = document.getElementById('painting-selector')
 const handPreview = document.getElementById('hand-preview')
 const handPreviewCanvas = document.getElementById('hand-preview-canvas')
 const hintsText = document.getElementById('hints-text')
-const gestureDemo = document.getElementById('gesture-demo')
 const gestureDemoLabel = document.getElementById('gesture-demo-label')
+const gestureDemoHint = document.getElementById('gesture-demo-hint')
+const gestureAnimCanvas = document.getElementById('gesture-anim-canvas')
 
 // State
 let currentModule = 'particles'
@@ -791,35 +793,21 @@ function _updateChallengeUI() {
   }
 }
 
-// ── Gesture Demo Animation ──
-const GESTURE_CYCLE = [
-  { selector: '.gesture-open', animClass: 'pulse', label: '张开手掌', hint: '张开散开粒子' },
-  { selector: '.gesture-fist', animClass: 'shrink', label: '握拳', hint: '握拳聚集粒子' },
-  { selector: '.gesture-pinch', animClass: 'pinch-anim', label: '捏合', hint: '捏合缩放画面' },
-  { selector: '.gesture-point', animClass: 'bounce', label: '伸出食指', hint: '伸出食指排斥粒子' },
-]
-let _gestureCycleIdx = 0
-let _gestureCycleTimer = null
-
-function _cycleGestureDemo() {
-  if (!gestureDemo) return
-  // Remove all active/animation classes
-  gestureDemo.querySelectorAll('.gesture-icon').forEach(icon => {
-    icon.classList.remove('active', 'pulse', 'shrink', 'pinch-anim', 'bounce')
-  })
-  const item = GESTURE_CYCLE[_gestureCycleIdx]
-  const icon = gestureDemo.querySelector(item.selector)
-  if (icon) {
-    icon.classList.add('active', item.animClass)
-    if (gestureDemoLabel) gestureDemoLabel.textContent = item.label
-  }
-  _gestureCycleIdx = (_gestureCycleIdx + 1) % GESTURE_CYCLE.length
-  _gestureCycleTimer = setTimeout(_cycleGestureDemo, 2800)
-}
+// ── Gesture Demo Animation (Canvas skeleton morphing) ──
+let gestureAnimator = null
 
 function _startGestureDemo() {
-  _gestureCycleIdx = 0
-  _cycleGestureDemo()
+  if (!gestureAnimCanvas) return
+  gestureAnimator = new GestureAnimator(gestureAnimCanvas)
+  gestureAnimator.onLabelChange((label, hint) => {
+    if (gestureDemoLabel) gestureDemoLabel.textContent = label
+    if (gestureDemoHint) {
+      gestureDemoHint.textContent = hint
+      gestureDemoHint.style.opacity = '1'
+      setTimeout(() => { if (gestureDemoHint) gestureDemoHint.style.opacity = '0.6' }, 2000)
+    }
+  })
+  gestureAnimator.start()
 }
 function _updateHints(moduleId) {
   if (!hintsText) return

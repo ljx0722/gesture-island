@@ -47,12 +47,10 @@
     </div>
     <div id="hints-bar" class="hints-bar">
       <div class="gesture-demo" id="gesture-demo">
-        <span class="gesture-icon gesture-open" title="张开手掌">&#9995;</span>
-        <span class="gesture-icon gesture-fist" title="握拳">&#9994;</span>
-        <span class="gesture-icon gesture-pinch" title="捏合">&#129311;</span>
-        <span class="gesture-icon gesture-point" title="指向">&#9757;</span>
+        <canvas id="gesture-anim-canvas" width="80" height="52"></canvas>
+        <span class="gesture-demo__label" id="gesture-demo-label">张开</span>
+        <span class="gesture-demo__hint" id="gesture-demo-hint">张开散开</span>
       </div>
-      <span class="gesture-demo__label" id="gesture-demo-label">张开</span>
       <span class="hints-divider">|</span>
       <span id="hints-text">←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | M 静音 | ? 指南</span>
     </div>
