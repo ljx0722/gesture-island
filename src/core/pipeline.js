@@ -129,6 +129,12 @@ export class Pipeline {
       }
 
       const hands = sortLeftRight(this._prevFrame?.hands ?? [])
+      const twoHandDistance = (hands.left && hands.right)
+        ? Math.hypot(hands.left.palmCenter.x - hands.right.palmCenter.x, hands.left.palmCenter.y - hands.right.palmCenter.y)
+        : -1
+      const handRotation = gestureSnapshot.hand?.handedness === 'right'
+        ? Math.atan2(gestureSnapshot.hand?.landmarks?.[12]?.y - gestureSnapshot.hand?.landmarks?.[0]?.y, gestureSnapshot.hand?.landmarks?.[12]?.x - gestureSnapshot.hand?.landmarks?.[0]?.x)
+        : Math.atan2(gestureSnapshot.hand?.landmarks?.[0]?.y - gestureSnapshot.hand?.landmarks?.[12]?.y, gestureSnapshot.hand?.landmarks?.[0]?.x - gestureSnapshot.hand?.landmarks?.[12]?.x)
 
       const frameData = {
         timestamp,
@@ -145,6 +151,8 @@ export class Pipeline {
         isPointing: gestureSnapshot.gesture === 'point',
         openness: gestureSnapshot.hand?.openness ?? 0,
         events: gestureSnapshot.events,
+        twoHandDistance,
+        handRotation,
         mask,
         video,
         cameraActive: this.camera.isActive(),

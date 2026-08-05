@@ -792,9 +792,9 @@ function _updateChallengeUI() {
 function _updateHints(moduleId) {
   if (!hintsText) return
   const map = {
-    particles: '🖐 握拳聚集 · 张开散开 · 挥手扰动粒子 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | ? 指南',
-    filters: '🖐 双手入镜形成滤镜区域 · 单手全屏滤镜 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
-    paintings: '🖐 手左右移动旋转画面 · 张开展开穹顶 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
+    particles: '🖐 握拳聚集 · 张开散开 · 捏合缩放 · 伸出食指排斥粒子 · 挥手扰动 | ←→ 切换 | D 演示 | C 摄像头 | S 截图 | ? 指南',
+    filters: '🖐 双手入镜成滤镜区 · 单手全屏 · 张合调节强度 · 捏合缩放 | ←→ 切滤镜 | R 随机 | D 演示 | C 摄像头 | S 截图',
+    paintings: '🖐 移动手旋转画面 · 张开展穹顶 · 捏合缩放 · 伸出食指重置视角 · 握拳暂停 | ←→ 切换 | D 演示 | S 截图 | F 全屏',
   }
   hintsText.textContent = map[moduleId] || map.particles
 }

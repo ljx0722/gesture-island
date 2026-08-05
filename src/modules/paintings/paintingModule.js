@@ -124,12 +124,34 @@ export class PaintingModule {
     const openness = frameData.openness ?? frameData.primaryHand?.openness ?? 0
     this._gestureOpenness = clamp(openness, 0, 1)
     if (!this._demoMode) this.setTargetProgress(this._gestureOpenness)
+
     // Hand position controls painting rotation
     const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
     if (hand?.palmCenter && !this._demoMode) {
       this.group.rotation.y = (hand.palmCenter.x - 0.5) * Math.PI * 0.8
       this.group.rotation.x = (hand.palmCenter.y - 0.5) * 0.6
     }
+
+    // Pinch → zoom camera in/out
+    const pinchScale = frameData.isPinching ? 1.0 + (1 - frameData.openness) * 3.0 : 1.0
+    this.camera.position.z += ((5.5 / pinchScale) - this.camera.position.z) * 0.1
+
+    // Two-hand distance → dome radius
+    if (frameData.twoHandDistance > 0) {
+      const domeRange = 1.0 + Math.min(frameData.twoHandDistance * 8, 8)
+      this.params.domeRadius += (domeRange - this.params.domeRadius) * 0.05
+      this.paintingParticles?.updateParams({ domeRadius: this.params.domeRadius })
+    }
+
+    // Point → reset view
+    if (frameData.isPointing && hand?.palmCenter) {
+      this._progress = 0; this._targetProgress = 0
+      this.group.rotation.set(0, 0, 0)
+    }
+
+    // Fist → pause/unpause demo or reset rotation
+    const ws = frameData.isFist ? 0.2 : 1.0
+    this._lerpSpeed = 2.5 * ws
   }
   setGestureOpenness(value) {
     this._gestureOpenness = clamp(value, 0, 1)

@@ -90,6 +90,8 @@ export class ParticleModule {
 
   onGestureFrame(frameData) {
     this._gestureOpenness = frameData.openness ?? 0
+
+    // Hand velocity for particle turbulence
     const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
     if (hand?.palmCenter) {
       if (this._handPos) {
@@ -102,6 +104,36 @@ export class ParticleModule {
       this._handVelocity *= 0.9
     }
     this.animation?.setHandVelocity(this._handVelocity)
+
+    // Pinch → zoom scale (closer to camera)
+    if (frameData.isPinching && this._handPos) {
+      const pinchScale = 1.0 - (1 - frameData.openness) * 0.5
+      this.camera.position.z = 4.2 * pinchScale
+      this.camera.lookAt(0, 0, 0)
+    } else if (this._handPos) {
+      this.camera.position.z += (4.2 - this.camera.position.z) * 0.1
+    }
+
+    // Two-hand distance → global particle scale
+    if (frameData.twoHandDistance > 0) {
+      const scale = 0.5 + Math.min(frameData.twoHandDistance * 2.5, 2.0)
+      this.particleModel?.updateParams({ pointScale: this.params.pointScale * scale * 0.8 })
+    }
+
+    // Point gesture → repel direction to shader
+    if (frameData.isPointing && hand?.palmCenter) {
+      this.animation?.setPointRepel(hand.palmCenter.x, hand.palmCenter.y, 0.4)
+    } else {
+      this.animation?.setPointRepel(0, 0, 0)
+    }
+
+    // Hand rotation → rotation speed bias
+    const rot = frameData.handRotation || 0
+    if (Math.abs(rot) > 0.1) {
+      this.params.rotationSpeed = 0.25 + rot * 0.5
+    } else {
+      this.params.rotationSpeed += (0.25 - this.params.rotationSpeed) * 0.05
+    }
   }
 
   setGestureOpenness(value) { this._gestureOpenness = value }

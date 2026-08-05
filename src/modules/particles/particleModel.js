@@ -11,6 +11,8 @@ uniform float uScatterDist;
 uniform float uNoiseAmp;
 uniform float uPointScale;
 uniform float uHandVelocity;
+uniform vec2 uRepel;
+uniform float uRepelStr;
 varying float vAlpha;
 varying float vRandom;
 void main() {
@@ -21,7 +23,8 @@ void main() {
   )*uNoiseAmp*0.025;
   float ep = uProgress*(0.85+randomSeed*0.3);
   float velTurb = uHandVelocity * sin(basePosition.x*8.0+uTime*3.0) * cos(basePosition.y*8.0-uTime*2.0) * 0.15;
-  vec3 displaced = basePosition+scatterDir*(ep+velTurb)*uScatterDist+noise;
+  float repel = uRepelStr * (1.0 - smoothstep(0.0, 0.5, length(basePosition.xy - uRepel)));
+  vec3 displaced = basePosition+scatterDir*(ep+velTurb-repel*0.6)*uScatterDist+noise;
   vec4 mv = modelViewMatrix*vec4(displaced,1.0);
   gl_Position = projectionMatrix*mv;
   gl_PointSize = clamp(uPointScale*(280.0/-mv.z),0.5,12.0);
@@ -120,6 +123,8 @@ export class ParticleModel {
         uPointScale: { value: this.pointScale }, uColor: { value: this.color },
         uOpacity: { value: this.opacity },
         uHandVelocity: { value: 0 },
+        uRepel: { value: new T.Vector2(0, 0) },
+        uRepelStr: { value: 0 },
         uPointShape: { value: this.pointShape },
       },
       transparent: true, depthWrite: false, blending: T.AdditiveBlending,
@@ -130,6 +135,10 @@ export class ParticleModel {
   setProgress(v) { this.material.uniforms.uProgress.value = v }
   setTime(v) { this.material.uniforms.uTime.value = v }
   setHandVelocity(v) { this.material.uniforms.uHandVelocity.value = Math.min(v, 5) }
+  setRepel(x, y, str) {
+    this.material.uniforms.uRepel.value.set(x - 0.5, y - 0.5)
+    this.material.uniforms.uRepelStr.value = Math.min(str, 1)
+  }
   setColor(hex) { this.color.set(hex); this.material.uniforms.uColor.value = this.color }
 
   updateParams(p) {

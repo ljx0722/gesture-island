@@ -124,6 +124,21 @@ export class FilterModule {
     const w = this.displayCanvas.width || this.displayCanvas.clientWidth
     const h = this.displayCanvas.height || this.displayCanvas.clientHeight
 
+    // Gesture-driven intensity: openness maps to current filter's intensity param
+    const intensityKey = this.filterParams.hasOwnProperty('intensity') ? 'intensity' : null
+    if (intensityKey && frameData.openness !== undefined && frameData.openness > 0) {
+      const preset = getFilterById(this.currentFilterId)
+      const def = preset?.params?.[intensityKey]
+      if (def) {
+        this.filterParams[intensityKey] = def.min + frameData.openness * (def.max - def.min)
+      }
+    }
+
+    // Two-hand distance → patch blend / spread factor
+    const twoDist = frameData.twoHandDistance || 0
+    const blendFactor = twoDist > 0 ? Math.min(1, twoDist * 3) : 0
+    this._blendFactor += (blendFactor - (this._blendFactor || 0)) * 0.1
+
     if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
       this.displayCanvas.width = w
       this.displayCanvas.height = h

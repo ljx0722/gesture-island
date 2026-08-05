@@ -1,4 +1,4 @@
-// particleAnimation.js — 消散/聚合动画 + 噪声 + 旋转
+// particleAnimation.js — 消散/聚合动画 + 噪声 + 旋转 + 指向排斥
 import { lerp, clamp } from '../../utils/math.js'
 
 export class ParticleAnimation {
@@ -12,36 +12,32 @@ export class ParticleAnimation {
     this.elapsed = 0
     this.demoMode = false
     this._demoTime = 0
+    this._repelX = 0; this._repelY = 0; this._repelStr = 0
   }
 
   update(deltaTime) {
-    const dt = Math.min(deltaTime, 0.1) // Cap delta to avoid jumps
+    const dt = Math.min(deltaTime, 0.1)
     this.elapsed += dt
 
     if (this.demoMode) {
-      // Auto breathing: 0→1→0 sine wave, 8s period
       this._demoTime += dt
       this.targetProgress = (Math.sin(this._demoTime * Math.PI * 2 / 8) + 1) / 2
     }
 
-    // Smooth lerp toward target
     this.currentProgress = lerp(this.currentProgress, this.targetProgress, clamp(this.lerpSpeed * dt, 0, 1))
 
-    // Update shader uniforms
     this.model.setProgress(this.currentProgress)
     this.model.setTime(this.elapsed)
+    this.model.setRepel(this._repelX, this._repelY, this._repelStr)
+    this._repelStr *= 0.95
   }
 
   setHandVelocity(v) { this.model.setHandVelocity(v) }
+  setPointRepel(x, y, str) { this._repelX = x; this._repelY = y; this._repelStr += (str - this._repelStr) * 0.2 }
 
-  setTargetProgress(value) {
-    this.targetProgress = clamp(value, 0, 1)
-  }
+  setTargetProgress(value) { this.targetProgress = clamp(value, 0, 1) }
 
-  setDemoMode(enabled) {
-    this.demoMode = enabled
-    this._demoTime = 0
-  }
+  setDemoMode(enabled) { this.demoMode = enabled; this._demoTime = 0 }
 
   getRotation(deltaTime) {
     if (!this.autoRotate) return 0
@@ -53,5 +49,6 @@ export class ParticleAnimation {
     this.targetProgress = 0
     this.elapsed = 0
     this._demoTime = 0
+    this._repelX = 0; this._repelY = 0; this._repelStr = 0
   }
 }
