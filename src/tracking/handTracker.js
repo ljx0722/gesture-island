@@ -63,8 +63,8 @@ export async function createHandTracker(options = {}) {
       baseOptions: { modelAssetPath: modelPath, delegate },
       runningMode: 'VIDEO',
       numHands,
-      minHandDetectionConfidence,
-      minHandPresenceConfidence,
+      minHandDetectionConfidence: minDetectionConfidence,
+      minHandPresenceConfidence: minPresenceConfidence,
       minTrackingConfidence,
     })
 
