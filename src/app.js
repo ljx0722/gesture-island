@@ -24,6 +24,8 @@ const smoothSlider = document.getElementById('smoothing-slider')
 const presetGallery = document.getElementById('preset-gallery')
 const filterSelector = document.getElementById('filter-selector')
 const paintingSelector = document.getElementById('painting-selector')
+const handPreview = document.getElementById('hand-preview')
+const handPreviewCanvas = document.getElementById('hand-preview-canvas')
 
 // State
 let currentModule = 'particles'
@@ -236,7 +238,60 @@ function _subscribePipeline() {
     if (currentModule === 'filters' && filterModule && !demoActive) {
       filterModule.render(frameData, 0.016)
     }
+    _renderHandPreview(frameData)
   })
+}
+
+// ── Hand preview (top-right mini window) ──
+function _renderHandPreview(frameData) {
+  if (!handPreviewCanvas) return
+  const pw = handPreviewCanvas.width
+  const ph = handPreviewCanvas.height
+  const ctx = handPreviewCanvas.getContext('2d', { alpha: false })
+  if (!ctx) return
+
+  // Draw mirrored camera frame scaled down
+  const video = frameData.video
+  if (video && video.readyState >= 2) {
+    ctx.save()
+    ctx.scale(-1, 1)
+    ctx.drawImage(video, -pw, 0, pw, ph)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = '#0a0a0f'
+    ctx.fillRect(0, 0, pw, ph)
+  }
+
+  // Draw hand skeletons
+  const connections = [
+    [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
+    [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16],
+    [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
+  ]
+  const toPixel = (pt) => ({ x: pt.x * pw, y: pt.y * ph })
+
+  for (const hand of [frameData.leftHand, frameData.rightHand]) {
+    if (!hand?.landmarks) continue
+    ctx.save()
+    ctx.strokeStyle = 'rgba(108,140,255,0.6)'
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    for (const [a, b] of connections) {
+      const pa = toPixel(hand.landmarks[a])
+      const pb = toPixel(hand.landmarks[b])
+      ctx.moveTo(pa.x, pa.y)
+      ctx.lineTo(pb.x, pb.y)
+    }
+    ctx.stroke()
+    for (const pt of hand.landmarks) {
+      const p = toPixel(pt)
+      ctx.fillStyle = 'rgba(108,140,255,0.9)'
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
 }
 
 // ── Module Switching ──
@@ -334,6 +389,8 @@ async function _startCamera() {
     pipeline.resetGestureState()
     pipeline.startLoop()
     _subscribePipeline()
+    handPreview?.classList.remove('hidden')
+    paramPanel.show()
     statusDisplay.hideLoading()
     statusDisplay.showToast('摄像头已启动，请将双手放入画面', 'info', 2500)
   } catch (e) {
@@ -350,6 +407,7 @@ async function _stopCamera() {
   btnCamera.textContent = '启动摄像头'
   btnCamera.classList.remove('on')
   statusDisplay.setHandStatus(0)
+  handPreview?.classList.add('hidden')
 }
 
 // ── Demo Mode ──
@@ -560,6 +618,7 @@ function _showParamPanel(moduleId) {
       paintingModule?.setParams(params)
     })
   }
+  paramPanel.show()
 }
 
 function _randomizeCustomFilter() {

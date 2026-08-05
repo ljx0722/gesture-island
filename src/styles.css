@@ -358,21 +358,59 @@ html, body {
   width: 70px; accent-color: var(--accent);
 }
 
-/* ── Parameter Panel ── */
-.param-panel {
-  position: fixed; top: 56px; right: 12px; z-index: 150;
-  width: 260px; max-height: calc(100vh - 130px);
-  overflow-y: auto;
-  padding: 16px;
+/* ── Unified Overlay Panels (param panel left, hand preview right) ── */
+.overlay-panel {
+  position: fixed; top: 56px; z-index: 150;
   border-radius: var(--radius);
   background: var(--surface);
   backdrop-filter: blur(16px);
   border: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
   transition: opacity var(--transition), transform var(--transition);
+  min-width: 180px;
 }
-.param-panel.hidden {
-  opacity: 0; transform: translateX(20px); pointer-events: none;
+.overlay-panel.hidden {
+  opacity: 0; pointer-events: none;
+}
+.overlay-panel--left  { left: 12px; }
+.overlay-panel--left.hidden  { transform: translateX(-20px); }
+.overlay-panel--right { right: 12px; }
+.overlay-panel--right.hidden { transform: translateX(20px); }
+
+.overlay-panel__title {
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 10px 14px 0;
+}
+
+.overlay-panel__body {
+  padding: 0 14px 12px;
+  overflow-y: auto;
+  max-height: calc(100vh - 170px);
+}
+
+/* ── Parameter Panel (top-left overlay) ── */
+#param-panel {
+  width: 260px;
+}
+#param-panel-body {
+  padding: 0 14px 12px;
+  overflow-y: auto;
+  max-height: calc(100vh - 170px);
+}
+
+/* ── Hand Preview Panel (top-right overlay) ── */
+#hand-preview {
+  min-width: 0;
+  padding-bottom: 10px;
+}
+#hand-preview .overlay-panel__title { padding-bottom: 4px; }
+#hand-preview-canvas {
+  display: block;
+  width: 200px; height: 150px;
+  border-radius: var(--radius-sm);
+  background: #0a0a0f;
+  margin: 0 14px;
 }
 
 .param-group { display: flex; flex-direction: column; gap: 4px; }
@@ -467,7 +505,10 @@ html, body {
   .selector-chip { padding: 3px 10px; font-size: 11px; }
   .selector-action { padding: 4px 10px; font-size: 11px; }
   .ctrl-btn { padding: 5px 10px; font-size: 11px; }
-  .param-panel { width: calc(100vw - 24px); right: 12px; max-height: 50vh; }
+  #param-panel { width: calc(100vw - 24px); left: 12px; max-height: 45vh; }
+  #param-panel-body { max-height: calc(45vh - 40px); }
+  #hand-preview { right: 12px; }
+  #hand-preview-canvas { width: 160px; height: 120px; }
   .slider-group input[type="range"] { width: 56px; }
   .slider-group label { font-size: 10px; }
 }

@@ -2,6 +2,7 @@
 export class ParamPanel {
   constructor() {
     this.el = document.getElementById('param-panel')
+    this.body = document.getElementById('param-panel-body')
     this._module = null
     this._onParamChange = null
   }
@@ -13,10 +14,9 @@ export class ParamPanel {
   }
 
   _render(paramDefs, values) {
-    if (!paramDefs) { this.el.innerHTML = ''; return }
+    if (!paramDefs) { this.body.innerHTML = ''; return }
 
     let html = '<div style="display:flex;flex-direction:column;gap:12px;">'
-    html += '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">参数面板</div>'
 
     for (const [key, def] of Object.entries(paramDefs)) {
       const type = def.type || 'range'
@@ -67,9 +67,9 @@ export class ParamPanel {
     }
 
     html += '</div>'
-    this.el.innerHTML = html
+    this.body.innerHTML = html
 
-    this.el.querySelectorAll('[data-param]').forEach(input => {
+    this.body.querySelectorAll('[data-param]').forEach(input => {
       const type = input.dataset.type || 'range'
       const eventName = type === 'range' || type === 'color' ? 'input' : 'change'
 
