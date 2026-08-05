@@ -4,7 +4,7 @@ import { createHandTracker } from '../tracking/handTracker.js'
 import { HandIdentityTracker } from '../tracking/handIdentity.js'
 import { GestureEngine } from '../gestures/gestureEngine.js'
 import { sortLeftRight, getHandCount } from '../tracking/handSorter.js'
-import { smoothFrame } from './smoothing.js'
+import { smoothFrame } from '../tracking/handFeatures.js'
 
 export class Pipeline {
   constructor(config = {}) {

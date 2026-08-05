@@ -106,12 +106,15 @@
     // Load addons
     document.getElementById('loading-text').textContent = '正在加载插件...';
     try {
-      await Promise.all([
-        loadScript(CDN + '/examples/jsm/controls/OrbitControls.js'),
-        loadScript(CDN + '/examples/jsm/loaders/GLTFLoader.js'),
-      ]);
+      await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/controls/OrbitControls.js');
     } catch(e) {
-      console.warn('Addon load failed (non-critical):', e.message);
+      console.warn('OrbitControls load failed (non-critical):', e.message);
+    }
+
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/loaders/GLTFLoader.js');
+    } catch(e) {
+      console.warn('GLTFLoader load failed (model upload disabled):', e.message);
     }
 
     // Verify THREE is loaded
