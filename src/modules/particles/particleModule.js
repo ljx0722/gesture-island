@@ -63,7 +63,7 @@ export class ParticleModule {
   _safeH(c) { return c.clientHeight || window.innerHeight || 768 }
   resize() { this._onResize() }
 
-  async init() { this._loadPreset(0) }
+  async init() { this._loadPreset(1) } // Start with "星空" — larger and more visible
 
   _loadPreset(index) {
     this.currentPresetIdx = Math.min(index, PRESETS.length - 1)

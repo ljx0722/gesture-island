@@ -136,7 +136,7 @@ async function _initParticlesModule() {
   particleModule.start()
   moduleInitialized.particles = true
   _renderModuleControls('particles')
-  _showParamPanel('particles')
+  // Don't auto-show param panel on first load — user opens it manually
 }
 
 async function _initPaintingsModule() {

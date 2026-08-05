@@ -255,7 +255,7 @@ html, body {
 
 /* ── Unified Overlay Panels (param panel left, hand preview right) ── */
 .overlay-panel {
-  position: fixed; top: 48px; z-index: 150;
+  position: fixed; top: 50%; transform: translateY(-50%); z-index: 150;
   border-radius: var(--radius);
   background: var(--surface);
   backdrop-filter: blur(16px);
@@ -266,7 +266,7 @@ html, body {
 }
 .overlay-panel.hidden { opacity: 0; pointer-events: none; }
 .overlay-panel--left  { left: 12px; }
-.overlay-panel--left.hidden  { transform: translateX(-20px); }
+.overlay-panel--left.hidden  { transform: translateY(-50%) translateX(-24px); }
 .overlay-panel--right { right: 12px; }
 .overlay-panel--right.hidden { transform: translateX(20px); }
 
@@ -285,7 +285,7 @@ html, body {
 }
 
 /* ── Hand Preview Panel (top-right overlay) ── */
-#hand-preview { min-width: 0; padding-bottom: 10px; }
+#hand-preview { min-width: 0; padding-bottom: 10px; top: 48px; transform: none; }
 #hand-preview .overlay-panel__title { padding-bottom: 4px; }
 #hand-preview-canvas {
   display: block;
@@ -379,8 +379,8 @@ html, body {
   .selector-name { min-width: 56px; font-size: 12px; }
   .ctrl-btn { padding: 6px 10px; font-size: 11px; min-height: 40px; }
   .selector-action { padding: 5px 8px; font-size: 11px; }
-  #param-panel { width: calc(100vw - 24px); left: 12px; max-height: 45vh; }
-  #param-panel-body { max-height: calc(45vh - 40px); }
+  #param-panel { width: calc(100vw - 24px); left: 12px; max-height: 50vh; }
+  #param-panel-body { max-height: calc(50vh - 40px); }
   #hand-preview { right: 12px; }
   #hand-preview-canvas { width: 160px; height: 120px; }
   .slider-group input[type="range"] { width: 56px; }
