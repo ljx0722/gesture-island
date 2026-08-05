@@ -128,7 +128,7 @@ async function _initParticlesModule() {
   await particleModule.init()
   particleModule.start()
   moduleInitialized.particles = true
-  _renderPresetGallery()
+  _renderModuleControls('particles')
   _showParamPanel('particles')
 }
 
@@ -360,7 +360,7 @@ async function switchModule(moduleId) {
       threeCanvas.classList.remove('hidden')
       if (particleModule) particleModule.start()
       else await _initParticlesModule()
-      _renderPresetGallery()
+      _renderModuleControls('particles')
       _showParamPanel('particles')
       statusDisplay.setStatus('就绪')
     } else if (moduleId === 'filters') {
@@ -370,7 +370,7 @@ async function switchModule(moduleId) {
         await _initFilterModule()
         statusDisplay.hideLoading()
       }
-      _renderFilterSelector()
+      _renderModuleControls('filters')
       _showParamPanel('filters')
     } else if (moduleId === 'paintings') {
       threeCanvas.classList.remove('hidden')
@@ -381,7 +381,7 @@ async function switchModule(moduleId) {
       } else {
         paintingModule.start()
       }
-      _renderPaintingSelector()
+      _renderModuleControls('paintings')
       _showParamPanel('paintings')
       statusDisplay.setStatus('就绪')
     }
@@ -500,21 +500,45 @@ function reset() {
 }
 
 // ── UI Rendering ──
+function _renderModuleControls(moduleId) {
+  if (moduleId === 'particles') _renderPresetGallery()
+  else if (moduleId === 'filters') _renderFilterSelector()
+  else if (moduleId === 'paintings') _renderPaintingSelector()
+}
+
 function _renderPresetGallery() {
   presetGallery.classList.remove('hidden')
-  let html = ''
+  const idx = particleModule?.currentPresetIdx ?? 0
+  const current = PRESETS[idx]
+  let html = `<button class="selector-arrow" id="preset-prev">◀</button>
+    <span class="selector-name">${current?.name || ''}</span>
+    <button class="selector-arrow" id="preset-next">▶</button>
+    <div class="selector-dots">`
   PRESETS.forEach((p, i) => {
-    html += `<button class="preset-chip selector-chip${i === (particleModule?.currentPresetIdx ?? 0) ? ' active' : ''}" data-preset="${i}">${p.name}</button>`
+    html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-preset="${i}" title="${p.name}"></span>`
   })
-  html += `<button class="upload-btn selector-action" id="upload-model-btn">上传模型</button>`
+  html += `</div>
+    <button class="selector-action selector-action-upload" id="upload-model-btn">上传模型</button>`
   presetGallery.innerHTML = html
 
-  presetGallery.querySelectorAll('.preset-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.preset)
-      particleModule?.selectPreset(idx)
+  document.getElementById('preset-prev')?.addEventListener('click', () => {
+    particleModule?.prevPreset()
+    _renderPresetGallery()
+    _showParamPanel('particles')
+    audioManager?.presetSwitch()
+  })
+  document.getElementById('preset-next')?.addEventListener('click', () => {
+    particleModule?.nextPreset()
+    _renderPresetGallery()
+    _showParamPanel('particles')
+    audioManager?.presetSwitch()
+  })
+  presetGallery.querySelectorAll('.selector-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      particleModule?.selectPreset(parseInt(dot.dataset.preset))
       _renderPresetGallery()
       _showParamPanel('particles')
+      audioManager?.presetSwitch()
     })
   })
 
@@ -548,12 +572,12 @@ function _renderFilterSelector() {
   filterSelector.classList.remove('hidden')
   const current = filterModule?.currentFilterId || 'vintage-halftone'
   const currentFilter = FILTER_PRESETS.find(f => f.id === current)
-  let html = `<button class="filter-arrow selector-arrow" id="filter-prev">◀</button>
-    <span class="filter-name selector-name">${currentFilter?.name || ''}</span>
-    <button class="filter-arrow selector-arrow" id="filter-next">▶</button>
-    <div class="filter-dots selector-dots">`
+  let html = `<button class="selector-arrow" id="filter-prev">◀</button>
+    <span class="selector-name">${currentFilter?.name || ''}</span>
+    <button class="selector-arrow" id="filter-next">▶</button>
+    <div class="selector-dots">`
   FILTER_PRESETS.forEach(f => {
-    html += `<span class="filter-dot selector-dot${f.id === current ? ' active' : ''}" data-filter="${f.id}" title="${f.name}"></span>`
+    html += `<span class="selector-dot${f.id === current ? ' active' : ''}" data-filter="${f.id}" title="${f.name}"></span>`
   })
   html += `</div>`
   filterSelector.innerHTML = html
@@ -562,43 +586,69 @@ function _renderFilterSelector() {
     filterModule?.prevFilter()
     _renderFilterSelector()
     _showParamPanel('filters')
+    audioManager?.filterSwitch()
   })
   document.getElementById('filter-next')?.addEventListener('click', () => {
     filterModule?.nextFilter()
     _renderFilterSelector()
     _showParamPanel('filters')
+    audioManager?.filterSwitch()
   })
-  filterSelector.querySelectorAll('.filter-dot').forEach(dot => {
+  filterSelector.querySelectorAll('.selector-dot').forEach(dot => {
     dot.addEventListener('click', () => {
       filterModule?.selectFilter(dot.dataset.filter)
       _renderFilterSelector()
       _showParamPanel('filters')
+      audioManager?.filterSwitch()
     })
   })
 }
 
 function _renderPaintingSelector() {
   paintingSelector.classList.remove('hidden')
-  let html = ''
-  const currentPainting = paintingModule?.getCurrentPainting()
+  const current = paintingModule?.getCurrentPainting()
+  const idx = paintingModule?._currentIdx ?? 0
+  let html = `<button class="selector-arrow" id="painting-prev">◀</button>
+    <span class="selector-name">${current?.title || ''}</span>
+    <button class="selector-arrow" id="painting-next">▶</button>
+    <div class="selector-dots">`
   PAINTING_PRESETS.forEach((p, i) => {
-    html += `<button class="painting-pill selector-chip${!paintingModule?._customPainting && i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
+    const isActive = !paintingModule?._customPainting && i === idx
+    html += `<span class="selector-dot${isActive ? ' active' : ''}" data-painting="${i}" title="${p.title}"></span>`
   })
   if (paintingModule?._customPainting) {
-    html += `<button class="painting-pill selector-chip active" type="button">${currentPainting.title}</button>`
+    html += `<span class="selector-dot active" title="${current.title}"></span>`
   }
-  html += `<button class="upload-btn selector-action" id="upload-painting-btn">上传图片</button>`
-  html += `<button class="fullscreen-btn selector-action" id="fullscreen-btn">全屏</button>`
+  html += `</div>
+    <button class="selector-action selector-action-upload" id="upload-painting-btn">上传图片</button>
+    <button class="selector-action" id="fullscreen-btn">全屏</button>`
   paintingSelector.innerHTML = html
 
-  paintingSelector.querySelectorAll('.painting-pill[data-painting]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const idx = parseInt(btn.dataset.painting)
+  document.getElementById('painting-prev')?.addEventListener('click', async () => {
+    statusDisplay.showLoading('正在切换画作...')
+    await paintingModule?.prevPainting()
+    statusDisplay.hideLoading()
+    _renderPaintingSelector()
+    _showParamPanel('paintings')
+    audioManager?.presetSwitch()
+  })
+  document.getElementById('painting-next')?.addEventListener('click', async () => {
+    statusDisplay.showLoading('正在切换画作...')
+    await paintingModule?.nextPainting()
+    statusDisplay.hideLoading()
+    _renderPaintingSelector()
+    _showParamPanel('paintings')
+    audioManager?.presetSwitch()
+  })
+  paintingSelector.querySelectorAll('.selector-dot[data-painting]').forEach(dot => {
+    dot.addEventListener('click', async () => {
+      const i = parseInt(dot.dataset.painting)
       statusDisplay.showLoading('正在切换画作...')
-      await paintingModule?.selectPainting(idx)
+      await paintingModule?.selectPainting(i)
       statusDisplay.hideLoading()
       _renderPaintingSelector()
       _showParamPanel('paintings')
+      audioManager?.presetSwitch()
     })
   })
   document.getElementById('upload-painting-btn')?.addEventListener('click', () => {
@@ -786,14 +836,14 @@ function _bindEvents() {
       case '2': switchModule('filters'); break
       case '3': switchModule('paintings'); break
       case 'ArrowLeft':
-        if (currentModule === 'particles') { particleModule?.prevPreset(); _renderPresetGallery(); _showParamPanel('particles'); audioManager?.presetSwitch() }
-        else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderFilterSelector(); _showParamPanel('filters'); audioManager?.filterSwitch() }
-        else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderPaintingSelector(); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        if (currentModule === 'particles') { particleModule?.prevPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
+        else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
+        else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
         break
       case 'ArrowRight':
-        if (currentModule === 'particles') { particleModule?.nextPreset(); _renderPresetGallery(); _showParamPanel('particles'); audioManager?.presetSwitch() }
-        else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderFilterSelector(); _showParamPanel('filters'); audioManager?.filterSwitch() }
-        else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderPaintingSelector(); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        if (currentModule === 'particles') { particleModule?.nextPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
+        else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
+        else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
         break
       case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) btnCamera.click(); break
       case '0': if (!e.ctrlKey && !e.metaKey) reset(); break
