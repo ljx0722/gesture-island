@@ -136,11 +136,14 @@ export class PaintingModule {
     const pinchScale = frameData.isPinching ? 1.0 + (1 - frameData.openness) * 3.0 : 1.0
     this.camera.position.z += ((5.5 / pinchScale) - this.camera.position.z) * 0.1
 
-    // Two-hand distance → dome radius
+    // Two-hand distance → dome radius (non-destructive, gesture biases user param)
     if (frameData.twoHandDistance > 0) {
-      const domeRange = 1.0 + Math.min(frameData.twoHandDistance * 8, 8)
-      this.params.domeRadius += (domeRange - this.params.domeRadius) * 0.05
-      this.paintingParticles?.updateParams({ domeRadius: this.params.domeRadius })
+      const gestureDome = 1.0 + Math.min(frameData.twoHandDistance * 8, 8)
+      this._gestureDome = gestureDome
+      const baseDome = this.params.domeRadius ?? 5.0
+      this.paintingParticles?.updateParams({ domeRadius: baseDome + (this._gestureDome - 5.0) * 0.3 })
+    } else {
+      this._gestureDome = 0
     }
 
     // Point → reset view
@@ -191,7 +194,7 @@ export class PaintingModule {
   setParams(params) {
     Object.assign(this.params, params)
     if (typeof this.params.domeMode === 'string') this.params.domeMode = parseInt(this.params.domeMode)
-    this.paintingParticles?.updateParams(params)
+    this.paintingParticles?.updateParams(this.params)
     if (params.bgColor) this.scene.background = new window.THREE.Color(params.bgColor)
   }
 

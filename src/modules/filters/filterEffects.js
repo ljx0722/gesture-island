@@ -37,10 +37,11 @@ export function applyCoolBlue(r, g, b, x, y, maskAlpha, p, t) {
 export function applyVintageGreen(r, g, b, x, y, maskAlpha, p, t) {
   let gray = 0.299*r+0.587*g+0.114*b
   const offX = (p.rgbOffset||0)*(Math.sin(t*2)*2), dith = (p.ditherAmount||0)*(noise2d(x,y,0)-0.5)*35
+  const gShift = (p.greenShift||0)*40
   let tr,tg,tb
-  if (gray<85) { tr=26; tg=42; tb=10 }
-  else if (gray<170) { tr=74; tg=90; tb=58 }
-  else { tr=230; tg=224; tb=208 }
+  if (gray<85) { tr=26; tg=42+gShift; tb=10 }
+  else if (gray<170) { tr=74; tg=90+gShift; tb=58 }
+  else { tr=230; tg=224+gShift; tb=208 }
   return { r: clampByte(lerp(r,tr+dith+offX,p.intensity)), g: clampByte(lerp(g,tg+dith,p.intensity)), b: clampByte(lerp(b,tb+dith-offX,p.intensity)) }
 }
 
@@ -97,22 +98,26 @@ export function applyPixelRetro(r, g, b, x, y, maskAlpha, p, t) {
 
 export function applyThermal(r, g, b, x, y, maskAlpha, p, t) {
   let gv=(0.299*r+0.587*g+0.114*b)/255; gv=Math.max(0,Math.min(1,(gv-0.5)*p.heatSensitivity+0.5))
+  const coldH = ((p.coldHue||240)/360)%1, hotH = ((p.hotHue||0)/360)%1
   let hr,hg,hb
-  if (gv<0.33){ const T=gv/0.33; hr=lerp(0,0,T); hg=lerp(0,160,T); hb=lerp(200,80,T) }
-  else if (gv<0.66){ const T=(gv-0.33)/0.33; hr=lerp(0,255,T); hg=lerp(160,200,T); hb=lerp(80,0,T) }
-  else { const T=(gv-0.66)/0.34; hr=lerp(255,255,T); hg=lerp(200,50,T); hb=lerp(0,0,T) }
+  if (gv<0.33){ const T=gv/0.33; const c=hslToRgb(coldH,0.7,0.4), m=hslToRgb((coldH+hotH)/2,0.6,0.5); hr=lerp(c.r,m.r,T); hg=lerp(c.g,m.g,T); hb=lerp(c.b,m.b,T) }
+  else if (gv<0.66){ const T=(gv-0.33)/0.33; const m=hslToRgb((coldH+hotH)/2,0.6,0.5), w=hslToRgb(hotH,0.8,0.55); hr=lerp(m.r,w.r,T); hg=lerp(m.g,w.g,T); hb=lerp(m.b,w.b,T) }
+  else { const T=(gv-0.66)/0.34; const w=hslToRgb(hotH,0.8,0.55); hr=lerp(w.r,255,T); hg=lerp(w.g,50,T); hb=lerp(w.b,0,T) }
   return { r:clampByte(lerp(r,hr,p.intensity)), g:clampByte(lerp(g,hg,p.intensity)), b:clampByte(lerp(b,hb,p.intensity)) }
 }
 
 export function applySketchPencil(r, g, b, x, y, maskAlpha, p, t) {
   let gray=0.299*r+0.587*g+0.114*b
-  const hatch=Math.sin(x*p.lineDensity*0.1+y*Math.tan(p.hatchAngle*Math.PI/180)*p.lineDensity*0.1)>0?25:0
+  const threshold = p.edgeThreshold || 0.15
+  const hatch=Math.sin(x*p.lineDensity*0.1+y*Math.tan(p.hatchAngle*Math.PI/180)*p.lineDensity*0.1)>0?30:0
   const edge=255-Math.abs(gray-128)*2
-  return { r:clampByte(lerp(r,Math.max(0,edge-hatch),p.intensity)), g:clampByte(lerp(g,Math.max(0,edge-hatch),p.intensity)), b:clampByte(lerp(b,Math.max(0,edge-hatch),p.intensity)) }
+  const e = edge < (threshold*255) ? 128 : edge
+  return { r:clampByte(lerp(r,Math.max(0,e-hatch),p.intensity)), g:clampByte(lerp(g,Math.max(0,e-hatch),p.intensity)), b:clampByte(lerp(b,Math.max(0,e-hatch),p.intensity)) }
 }
 
 export function applyRainbowHolo(r, g, b, x, y, maskAlpha, p, t) {
-  const hue=((x*0.3+y*0.5+t*p.prismSpeed)%1)*360
+  const shift = p.shiftHue || 0
+  const hue=((x*0.3+y*0.5+t*p.prismSpeed+shift*360)%1)*360
   const {r:hr,g:hg,b:hb}=hslToRgb(hue/360,0.8,0.55)
   return { r:clampByte(lerp(r,hr,p.intensity*p.rainbowIntensity)), g:clampByte(lerp(g,hg,p.intensity*p.rainbowIntensity)), b:clampByte(lerp(b,hb,p.intensity*p.rainbowIntensity)) }
 }

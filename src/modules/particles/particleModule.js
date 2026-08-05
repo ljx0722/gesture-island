@@ -40,7 +40,7 @@ export class ParticleModule {
     this.scene.add(this.group)
 
     this._animId = 0; this._lastTime = 0; this._gestureOpenness = 0; this._running = false
-    this._handPos = null; this._handVelocity = 0
+    this._handPos = null; this._handVelocity = 0; this._gestureRotBias = 0
 
     this.params = {
       pointScale: 1.6, scatterDist: 1.5, noiseAmp: 0.6,
@@ -127,13 +127,11 @@ export class ParticleModule {
       this.animation?.setPointRepel(0, 0, 0)
     }
 
-    // Hand rotation → rotation speed bias
+    // Hand rotation → rotation speed bias (non-destructive to user param)
     const rot = frameData.handRotation || 0
-    if (Math.abs(rot) > 0.1) {
-      this.params.rotationSpeed = 0.25 + rot * 0.5
-    } else {
-      this.params.rotationSpeed += (0.25 - this.params.rotationSpeed) * 0.05
-    }
+    this._gestureRotBias += (rot - (this._gestureRotBias || 0)) * 0.15
+    const baseSpeed = this.params.rotationSpeed ?? 0.25
+    this.animation.rotationSpeed = baseSpeed + (this._gestureRotBias || 0) * 0.5
   }
 
   setGestureOpenness(value) { this._gestureOpenness = value }
@@ -183,6 +181,7 @@ export class ParticleModule {
     this._loadPreset(this.currentPresetIdx)
     this.animation?.reset()
     this._gestureOpenness = 0
+    this._gestureRotBias = 0
   }
 
   dispose() {
