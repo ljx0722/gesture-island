@@ -31,6 +31,8 @@ const paintingSelector = document.getElementById('painting-selector')
 const handPreview = document.getElementById('hand-preview')
 const handPreviewCanvas = document.getElementById('hand-preview-canvas')
 const hintsText = document.getElementById('hints-text')
+const gestureDemo = document.getElementById('gesture-demo')
+const gestureDemoLabel = document.getElementById('gesture-demo-label')
 
 // State
 let currentModule = 'particles'
@@ -110,6 +112,7 @@ async function init() {
     setTimeout(() => onboarding.show(), 500)
   }
   _updateHints('particles')
+  _startGestureDemo()
 }
 
 function resizeCanvas() {
@@ -788,13 +791,42 @@ function _updateChallengeUI() {
   }
 }
 
-// ── Hints ──
+// ── Gesture Demo Animation ──
+const GESTURE_CYCLE = [
+  { selector: '.gesture-open', animClass: 'pulse', label: '张开手掌', hint: '张开散开粒子' },
+  { selector: '.gesture-fist', animClass: 'shrink', label: '握拳', hint: '握拳聚集粒子' },
+  { selector: '.gesture-pinch', animClass: 'pinch-anim', label: '捏合', hint: '捏合缩放画面' },
+  { selector: '.gesture-point', animClass: 'bounce', label: '伸出食指', hint: '伸出食指排斥粒子' },
+]
+let _gestureCycleIdx = 0
+let _gestureCycleTimer = null
+
+function _cycleGestureDemo() {
+  if (!gestureDemo) return
+  // Remove all active/animation classes
+  gestureDemo.querySelectorAll('.gesture-icon').forEach(icon => {
+    icon.classList.remove('active', 'pulse', 'shrink', 'pinch-anim', 'bounce')
+  })
+  const item = GESTURE_CYCLE[_gestureCycleIdx]
+  const icon = gestureDemo.querySelector(item.selector)
+  if (icon) {
+    icon.classList.add('active', item.animClass)
+    if (gestureDemoLabel) gestureDemoLabel.textContent = item.label
+  }
+  _gestureCycleIdx = (_gestureCycleIdx + 1) % GESTURE_CYCLE.length
+  _gestureCycleTimer = setTimeout(_cycleGestureDemo, 2800)
+}
+
+function _startGestureDemo() {
+  _gestureCycleIdx = 0
+  _cycleGestureDemo()
+}
 function _updateHints(moduleId) {
   if (!hintsText) return
   const map = {
-    particles: '🖐 握拳聚集 · 张开散开 · 捏合缩放 · 伸出食指排斥粒子 · 挥手扰动 | ←→ 切换 | D 演示 | C 摄像头 | S 截图 | ? 指南',
-    filters: '🖐 双手入镜成滤镜区 · 单手全屏 · 张合调节强度 · 捏合缩放 | ←→ 切滤镜 | R 随机 | D 演示 | C 摄像头 | S 截图',
-    paintings: '🖐 移动手旋转画面 · 张开展穹顶 · 捏合缩放 · 伸出食指重置视角 · 握拳暂停 | ←→ 切换 | D 演示 | S 截图 | F 全屏',
+    particles: '挥手扰动粒子 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | M 静音 | ? 指南',
+    filters: '双手入镜成滤镜区 单手全屏 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
+    paintings: '移动手旋转画面 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
   }
   hintsText.textContent = map[moduleId] || map.particles
 }

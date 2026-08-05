@@ -46,7 +46,15 @@
       <p id="loading-text">正在加载 Three.js...</p>
     </div>
     <div id="hints-bar" class="hints-bar">
-      <span id="hints-text">🖐 握拳聚集 · 张开散开 · 捏合缩放 · 伸出食指排斥 · 挥手扰动 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | ? 指南</span>
+      <div class="gesture-demo" id="gesture-demo">
+        <span class="gesture-icon gesture-open" title="张开手掌">&#9995;</span>
+        <span class="gesture-icon gesture-fist" title="握拳">&#9994;</span>
+        <span class="gesture-icon gesture-pinch" title="捏合">&#129311;</span>
+        <span class="gesture-icon gesture-point" title="指向">&#9757;</span>
+      </div>
+      <span class="gesture-demo__label" id="gesture-demo-label">张开</span>
+      <span class="hints-divider">|</span>
+      <span id="hints-text">←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | M 静音 | ? 指南</span>
     </div>
     <div id="param-panel" class="overlay-panel overlay-panel--left hidden">
       <div class="overlay-panel__title">参数面板</div>
