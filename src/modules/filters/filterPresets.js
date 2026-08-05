@@ -153,6 +153,22 @@ export const FILTER_PRESETS = [
       randomize:      { type: 'button', label: '随机魔法', buttonLabel: '随机魔法', action: 'randomizeCustomFilter' },
     }
   },
+  {
+    id: 'kaleidoscope', name: '万花筒', category: '魔法',
+    params: {
+      intensity: { label: '强度', min: 0, max: 1, step: 0.01, default: 0.85 },
+      segments:  { label: '镜面数', min: 2, max: 8, step: 1, default: 4 },
+    }
+  },
+  {
+    id: 'candy-paint', name: '糖果涂鸦', category: '魔法',
+    params: {
+      intensity:  { label: '强度', min: 0, max: 1, step: 0.01, default: 0.8 },
+      colorShift: { label: '色相偏移', min: 0, max: 1, step: 0.01, default: 0.25 },
+      speed:      { label: '流动速度', min: 0.1, max: 3, step: 0.05, default: 1.0 },
+      dripAmount: { label: '滴落效果', min: 0, max: 1, step: 0.01, default: 0.4 },
+    }
+  },
 ]
 
 export function getFilterById(id) {

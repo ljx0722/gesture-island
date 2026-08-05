@@ -124,6 +124,12 @@ export class PaintingModule {
     const openness = frameData.openness ?? frameData.primaryHand?.openness ?? 0
     this._gestureOpenness = clamp(openness, 0, 1)
     if (!this._demoMode) this.setTargetProgress(this._gestureOpenness)
+    // Hand position controls painting rotation
+    const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
+    if (hand?.palmCenter && !this._demoMode) {
+      this.group.rotation.y = (hand.palmCenter.x - 0.5) * Math.PI * 0.8
+      this.group.rotation.x = (hand.palmCenter.y - 0.5) * 0.6
+    }
   }
   setGestureOpenness(value) {
     this._gestureOpenness = clamp(value, 0, 1)
@@ -142,7 +148,7 @@ export class PaintingModule {
       this._progress += (this._targetProgress - this._progress) * clamp(this._lerpSpeed * dt, 0, 1)
       this.paintingParticles?.setProgress(this._progress)
       this.paintingParticles?.setTime(this._elapsed)
-      this.group.rotation.y += 0.05 * dt
+      if (this._demoMode) this.group.rotation.y += 0.05 * dt
       if (this.controls) this.controls.update()
       this.renderer.render(this.scene, this.camera)
     }
@@ -162,6 +168,7 @@ export class PaintingModule {
 
   setParams(params) {
     Object.assign(this.params, params)
+    if (typeof this.params.domeMode === 'string') this.params.domeMode = parseInt(this.params.domeMode)
     this.paintingParticles?.updateParams(params)
     if (params.bgColor) this.scene.background = new window.THREE.Color(params.bgColor)
   }

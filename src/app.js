@@ -30,6 +30,7 @@ const filterSelector = document.getElementById('filter-selector')
 const paintingSelector = document.getElementById('painting-selector')
 const handPreview = document.getElementById('hand-preview')
 const handPreviewCanvas = document.getElementById('hand-preview-canvas')
+const hintsText = document.getElementById('hints-text')
 
 // State
 let currentModule = 'particles'
@@ -108,6 +109,7 @@ async function init() {
   if (!onboarding.done) {
     setTimeout(() => onboarding.show(), 500)
   }
+  _updateHints('particles')
 }
 
 function resizeCanvas() {
@@ -362,6 +364,7 @@ async function switchModule(moduleId) {
       else await _initParticlesModule()
       _renderModuleControls('particles')
       _showParamPanel('particles')
+      _updateHints('particles')
       statusDisplay.setStatus('就绪')
     } else if (moduleId === 'filters') {
       cameraCanvas.classList.remove('hidden')
@@ -385,6 +388,7 @@ async function switchModule(moduleId) {
       _showParamPanel('paintings')
       statusDisplay.setStatus('就绪')
     }
+    _updateHints(moduleId)
   } catch (e) {
     console.error('Module switch error:', e)
     statusDisplay.hideLoading()
@@ -690,6 +694,10 @@ function _showParamPanel(moduleId) {
       lerpSpeed: { label: '过渡速度', min: 0.5, max: 10, step: 0.1, default: 3.0 },
       rotationSpeed: { label: '旋转速度', min: 0, max: 2, step: 0.01, default: 0.25 },
       opacity: { label: '不透明度', min: 0.1, max: 1, step: 0.01, default: 0.9 },
+      color: { type: 'color', label: '粒子颜色', default: '#6c8cff' },
+      pointShape: { type: 'select', label: '粒子形状', default: 0, options: [
+        { value: 0, label: '圆形' }, { value: 1, label: '方形' }, { value: 2, label: '菱形' }, { value: 3, label: '星形' },
+      ] },
     }, params, (key, val) => {
       params[key] = val
       particleModule?.setParams(params)
@@ -712,6 +720,10 @@ function _showParamPanel(moduleId) {
       brushLength: { label: '笔触长度', min: 0.3, max: 3, step: 0.05, default: 1.0 },
       domeRadius: { label: '穹顶半径', min: 1, max: 10, step: 0.1, default: 5.0 },
       wrapAngle: { label: '包裹角度', min: 0.5, max: 2, step: 0.05, default: 1.6 },
+      domeMode: { type: 'select', label: '穹顶样式', default: 0, options: [
+        { value: 0, label: '半球' }, { value: 1, label: '圆柱' }, { value: 2, label: '球面' },
+      ] },
+      bgColor: { type: 'color', label: '背景颜色', default: '#0a0a1a' },
     }, params, (key, val) => {
       params[key] = val
       paintingModule?.setParams(params)
@@ -774,6 +786,17 @@ function _updateChallengeUI() {
     document.getElementById('btn-challenge').textContent = '挑战'
     document.getElementById('btn-challenge').classList.remove('on')
   }
+}
+
+// ── Hints ──
+function _updateHints(moduleId) {
+  if (!hintsText) return
+  const map = {
+    particles: '🖐 握拳聚集 · 张开散开 · 挥手扰动粒子 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | ? 指南',
+    filters: '🖐 双手入镜形成滤镜区域 · 单手全屏滤镜 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
+    paintings: '🖐 手左右移动旋转画面 · 张开展开穹顶 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
+  }
+  hintsText.textContent = map[moduleId] || map.particles
 }
 
 // ── Events ──

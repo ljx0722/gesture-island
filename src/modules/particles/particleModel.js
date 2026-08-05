@@ -32,15 +32,30 @@ void main() {
 const FRAG = /* glsl */ `
 uniform vec3 uColor;
 uniform float uOpacity;
+uniform float uPointShape;
 varying float vAlpha;
 varying float vRandom;
 void main() {
-  float d = length(gl_PointCoord-0.5)*2.0;
-  float a = 1.0-smoothstep(0.15,1.0,d);
-  a*=a*vAlpha*uOpacity*(0.75+vRandom*0.25);
-  vec3 c = uColor*(1.0+(1.0-d)*0.6);
-  if(a<0.01)discard;
-  gl_FragColor=vec4(c,a);
+  vec2 c = gl_PointCoord - 0.5;
+  float d;
+  if (uPointShape < 0.5) {
+    d = length(c) * 2.0;
+  } else if (uPointShape < 1.5) {
+    d = max(abs(c.x), abs(c.y)) * 2.0;
+  } else if (uPointShape < 2.5) {
+    float sx = c.x * 1.4, sy = c.y * 1.4;
+    float rr = abs(sx) + abs(sy);
+    d = rr * 1.6;
+  } else {
+    float a = atan(c.y, c.x);
+    float r = length(c) * 2.0;
+    d = r * (0.65 + 0.35 * cos(a * 5.0));
+  }
+  float a = 1.0 - smoothstep(0.15, 1.0, d);
+  a *= a * vAlpha * uOpacity * (0.75 + vRandom * 0.25);
+  vec3 col = uColor * (1.0 + (1.0 - d) * 0.6);
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(col, a);
 }`
 
 export class ParticleModel {
@@ -52,6 +67,7 @@ export class ParticleModel {
     this.noiseAmp = options.noiseAmp ?? 0.6
     this.color = new T.Color(options.color ?? '#6c8cff')
     this.opacity = options.opacity ?? 0.9
+    this.pointShape = options.pointShape ?? 0
     this.points = null
     this.material = null
     this._build(geometry)
@@ -104,6 +120,7 @@ export class ParticleModel {
         uPointScale: { value: this.pointScale }, uColor: { value: this.color },
         uOpacity: { value: this.opacity },
         uHandVelocity: { value: 0 },
+        uPointShape: { value: this.pointShape },
       },
       transparent: true, depthWrite: false, blending: T.AdditiveBlending,
     })
@@ -121,6 +138,7 @@ export class ParticleModel {
     if (p.noiseAmp !== undefined) this.material.uniforms.uNoiseAmp.value = p.noiseAmp
     if (p.opacity !== undefined) this.material.uniforms.uOpacity.value = p.opacity
     if (p.color !== undefined) { this.color.set(p.color); this.material.uniforms.uColor.value = this.color }
+    if (p.pointShape !== undefined) { this.pointShape = p.pointShape; this.material.uniforms.uPointShape.value = p.pointShape }
   }
 
   dispose() {

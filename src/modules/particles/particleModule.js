@@ -18,7 +18,8 @@ export class ParticleModule {
     this.scene = new T.Scene()
     this.scene.background = new T.Color('#0a0a0f')
     this.camera = new T.PerspectiveCamera(55, this._safeW(container) / Math.max(1, this._safeH(container)), 0.1, 50)
-    this.camera.position.set(0, 0.3, 5)
+    this.camera.position.set(0, 0, 4.2)
+    this.camera.lookAt(0, 0, 0)
 
     if (T.OrbitControls) {
       this.controls = new T.OrbitControls(this.camera, this.renderer.domElement)
@@ -43,7 +44,8 @@ export class ParticleModule {
 
     this.params = {
       pointScale: 1.6, scatterDist: 1.5, noiseAmp: 0.6,
-      lerpSpeed: 3.0, rotationSpeed: 0.25, opacity: 0.9, color: '#6c8cff',
+      lerpSpeed: 3.0, rotationSpeed: 0.25, opacity: 0.9,
+      color: '#6c8cff', pointShape: 0,
     }
 
     this._onResize = () => {
@@ -77,6 +79,7 @@ export class ParticleModule {
     this.particleModel = new ParticleModel(geometry, {
       pointScale: this.params.pointScale, scatterDist: this.params.scatterDist,
       noiseAmp: this.params.noiseAmp, color: this.params.color, opacity: this.params.opacity,
+      pointShape: this.params.pointShape,
     })
     this.group.add(this.particleModel.points)
 
@@ -135,7 +138,9 @@ export class ParticleModule {
 
   setParams(params) {
     Object.assign(this.params, params)
-    this.particleModel?.updateParams(params)
+    if (typeof this.params.pointShape === 'string') this.params.pointShape = parseInt(this.params.pointShape)
+    if (typeof this.params.color !== 'string' || !this.params.color.startsWith('#')) this.params.color = '#6c8cff'
+    this.particleModel?.updateParams(this.params)
     if (this.animation && params.lerpSpeed !== undefined) this.animation.lerpSpeed = params.lerpSpeed
     if (this.animation && params.rotationSpeed !== undefined) this.animation.rotationSpeed = params.rotationSpeed
   }

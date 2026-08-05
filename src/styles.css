@@ -34,14 +34,14 @@ html, body {
   position: fixed; top: 0; left: 0; right: 0; z-index: 101;
   display: flex; align-items: center; gap: 10px;
   padding: 5px 16px;
-  background: rgba(10, 10, 15, 0.92);
+  background: rgba(10, 10, 15, 0.94);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   min-height: 40px;
 }
 .brand-logo {
   font-size: 18px; color: var(--accent);
-  text-shadow: 0 0 8px var(--accent-glow);
+  text-shadow: 0 0 10px var(--accent-glow);
   flex-shrink: 0;
 }
 .brand-divider { width: 1px; height: 18px; background: var(--line); flex-shrink: 0; }
@@ -325,6 +325,18 @@ html, body {
 }
 .param-row-button label { flex: 0; }
 
+/* ── Persistent Hints Bar ── */
+.hints-bar {
+  position: fixed; top: 42px; left: 0; right: 0; z-index: 99;
+  text-align: center; padding: 3px 12px;
+  background: rgba(10,10,15,0.55);
+  backdrop-filter: blur(4px);
+  font-size: 11px; color: var(--text-dim);
+  pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+[data-theme="light"] .hints-bar { background: rgba(255,255,255,0.5); color: #777; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .brand-name-cn { font-size: 10px; }
@@ -421,30 +433,37 @@ html, body {
 
 /* ── Light Theme ── */
 [data-theme="light"] {
-  --bg: #f0f0f5;
-  --surface: rgba(255,255,255,0.88);
-  --surface-hover: rgba(240,240,250,0.92);
+  --bg: #f4f4f8;
+  --surface: rgba(255,255,255,0.92);
+  --surface-hover: rgba(240,240,248,0.95);
   --text: #1a1a2e;
-  --text-dim: #666680;
+  --text-dim: #555570;
   --line: rgba(0,0,0,0.1);
-  --accent: #4a6cff;
-  --accent-glow: rgba(74,108,255,0.3);
+  --accent: #3d5ce5;
+  --accent-glow: rgba(61,92,229,0.25);
 }
-[data-theme="light"] #brand-bar,
-[data-theme="light"] #bottom-bar {
-  background: rgba(240,240,245,0.92);
-}
-[data-theme="light"] .loading-overlay { background: rgba(240,240,245,0.9); }
+[data-theme="light"] #brand-bar { background: rgba(255,255,255,0.94); border-bottom-color: rgba(0,0,0,0.08); }
+[data-theme="light"] #bottom-bar { background: linear-gradient(0deg, rgba(255,255,255,0.95) 60%, rgba(255,255,255,0) 100%); }
+[data-theme="light"] .loading-overlay { background: rgba(244,244,248,0.92); }
+[data-theme="light"] .selector-panel,
+[data-theme="light"] .overlay-panel,
+[data-theme="light"] .challenge-bar { border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .tab-btn { color: #444; }
+[data-theme="light"] .tab-btn:hover { color: #1a1a2e; background: rgba(0,0,0,0.06); }
+[data-theme="light"] .brand-logo { color: var(--accent); }
+[data-theme="light"] .ctrl-btn { color: #333; }
+[data-theme="light"] .selector-dot { background: rgba(0,0,0,0.15); }
+[data-theme="light"] #hand-preview-canvas { background: #e8e8ee; }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg: #f0f0f5;
-    --surface: rgba(255,255,255,0.88);
-    --surface-hover: rgba(240,240,250,0.92);
+    --bg: #f4f4f8;
+    --surface: rgba(255,255,255,0.92);
+    --surface-hover: rgba(240,240,248,0.95);
     --text: #1a1a2e;
-    --text-dim: #666680;
+    --text-dim: #555570;
     --line: rgba(0,0,0,0.1);
-    --accent: #4a6cff;
-    --accent-glow: rgba(74,108,255,0.3);
+    --accent: #3d5ce5;
+    --accent-glow: rgba(61,92,229,0.25);
   }
 }
