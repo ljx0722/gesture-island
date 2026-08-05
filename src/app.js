@@ -53,7 +53,9 @@ async function init() {
   // Init particle module (default tab)
   try {
     resizeCanvas()
-    _initParticlesModule()
+    await _initParticlesModule()
+    document.getElementById('app').style.display = 'flex'
+    statusDisplay.hideLoading()
   } catch (e) {
     console.error('Particle module init error:', e)
     statusDisplay.showError('粒子模块加载失败: ' + e.message)
