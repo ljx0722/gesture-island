@@ -66,6 +66,7 @@ async function init() {
   // Bind events FIRST — before any module loading can fail
   _bindEvents()
   _setupMouseGestures()
+  _setupHandPreviewDrag()
 
   // Create pipeline
   pipeline = new Pipeline({ videoElement: videoEl, smoothingAlpha: parseFloat(smoothSlider.value) })
@@ -288,6 +289,37 @@ function _subscribePipeline() {
       filterModule.render(frameData, 0.016)
     }
     _renderHandPreview(frameData)
+  })
+}
+
+// ── Hand preview drag ──
+function _setupHandPreviewDrag() {
+  const panel = handPreview
+  if (!panel) return
+  const title = panel.querySelector('.overlay-panel__title')
+  if (!title) return
+
+  let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0
+
+  title.addEventListener('pointerdown', (e) => {
+    dragging = true; title.setPointerCapture(e.pointerId)
+    const rect = panel.getBoundingClientRect()
+    startX = e.clientX; startY = e.clientY
+    origLeft = rect.left; origTop = rect.top
+    panel.style.transition = 'none'
+  })
+  title.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const dx = e.clientX - startX, dy = e.clientY - startY
+    panel.style.left = (origLeft + dx) + 'px'
+    panel.style.top = (origTop + dy) + 'px'
+    panel.style.right = 'auto'; panel.style.bottom = 'auto'
+  })
+  title.addEventListener('pointerup', () => {
+    dragging = false; panel.style.transition = ''
+  })
+  title.addEventListener('pointercancel', () => {
+    dragging = false; panel.style.transition = ''
   })
 }
 

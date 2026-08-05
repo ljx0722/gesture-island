@@ -32,37 +32,37 @@ html, body {
 /* ── Top Bar (logo | name | tabs | theme | panel-toggle in one row) ── */
 #brand-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 101;
-  display: flex; align-items: center; gap: 10px;
-  padding: 5px 16px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 10px;
   background: rgba(10, 10, 15, 0.94);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
-  min-height: 40px;
+  min-height: 32px;
 }
 .brand-logo {
-  font-size: 18px; color: var(--accent);
-  text-shadow: 0 0 12px var(--accent-glow);
+  font-size: 16px; color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
   flex-shrink: 0;
 }
-.brand-divider { width: 1px; height: 18px; background: var(--line); flex-shrink: 0; }
+.brand-divider { width: 1px; height: 14px; background: var(--line); flex-shrink: 0; }
 .brand-name-cn {
-  font-size: 12px; font-weight: 600; color: var(--text);
-  letter-spacing: 1px; white-space: nowrap;
+  font-size: 11px; font-weight: 600; color: var(--text);
+  letter-spacing: 0.5px; white-space: nowrap;
 }
 .brand-name-en {
-  font-size: 9px; color: var(--text-dim);
+  font-size: 8px; color: var(--text-dim);
   font-style: italic; white-space: nowrap;
 }
 
 #tab-bar { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
 .tab-btn {
-  padding: 5px 14px;
+  padding: 3px 10px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 12px; font-family: var(--font);
+  font-size: 11px; font-family: var(--font);
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
@@ -75,13 +75,13 @@ html, body {
 }
 
 #theme-toggle {
-  width: 28px; height: 28px;
+  width: 24px; height: 24px;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   margin-left: auto;
   transition: all var(--transition);
@@ -90,12 +90,12 @@ html, body {
 #theme-toggle:hover { background: var(--surface-hover); }
 
 .icon-btn {
-  width: 30px; height: 30px;
+  width: 26px; height: 26px;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 16px; cursor: pointer;
+  font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition);
   flex-shrink: 0;
@@ -149,11 +149,11 @@ html, body {
 /* ── Bottom Bar ── */
 #bottom-bar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-  display: flex; align-items: center; gap: 10px;
-  padding: 6px 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
   background: linear-gradient(0deg, rgba(10,10,15,0.95) 60%, rgba(10,10,15,0) 100%);
   backdrop-filter: blur(8px);
-  min-height: 50px;
+  min-height: 42px;
 }
 #bar-left  { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; }
 #bar-center { flex: 0 0 auto; margin-left: auto; display: flex; gap: 8px; align-items: center; }
@@ -164,8 +164,8 @@ html, body {
 
 /* ── Unified Module Controls (arrow + name + dots + action buttons) ── */
 .selector-panel {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -174,12 +174,12 @@ html, body {
 }
 
 .selector-arrow {
-  width: 28px; height: 28px;
+  width: 22px; height: 22px;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 14px; cursor: pointer;
+  font-size: 11px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition);
   flex-shrink: 0;
@@ -231,12 +231,12 @@ html, body {
 
 /* ── Control Buttons ── */
 .ctrl-btn {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  font-size: 12px; font-family: var(--font);
+  font-size: 11px; font-family: var(--font);
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
@@ -262,7 +262,7 @@ html, body {
   border: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 8px;
   min-width: 180px;
-  max-height: calc(100vh - 110px);
+  max-height: calc(100vh - 120px);
 }
 .overlay-panel.hidden { opacity: 0; pointer-events: none; }
 .overlay-panel--left  { left: 12px; }
@@ -271,28 +271,30 @@ html, body {
 .overlay-panel--right.hidden { transform: translateX(20px); }
 
 .overlay-panel__title {
-  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  font-size: 11px; font-weight: 600; color: var(--text-dim);
   text-transform: uppercase; letter-spacing: 0.5px;
-  padding: 10px 14px 0;
+  padding: 8px 12px 0;
+  cursor: grab; user-select: none;
 }
+.overlay-panel__title:active { cursor: grabbing; }
 
-/* ── Parameter Panel (top-left overlay) ── */
-#param-panel { width: 250px; }
+/* ── Parameter Panel (left vertical-center overlay) ── */
+#param-panel { width: 240px; }
 #param-panel-body {
-  padding: 0 14px 12px;
+  padding: 0 12px 10px;
   overflow-y: auto;
-  max-height: calc(100vh - 170px);
+  max-height: calc(100vh - 160px);
 }
 
-/* ── Hand Preview Panel (top-right overlay) ── */
-#hand-preview { min-width: 0; padding-bottom: 10px; top: 48px; transform: none; }
-#hand-preview .overlay-panel__title { padding-bottom: 4px; }
+/* ── Hand Preview Panel (draggable, 16:9, top-right) ── */
+#hand-preview { min-width: 0; padding-bottom: 8px; top: auto; left: auto; right: 12px; bottom: auto; transform: none; }
+#hand-preview .overlay-panel__title { padding-bottom: 2px; }
 #hand-preview-canvas {
   display: block;
-  width: 200px; height: 150px;
+  width: 160px; height: 90px;
   border-radius: var(--radius-sm);
   background: #0a0a0f;
-  margin: 0 14px;
+  margin: 0 10px;
 }
 
 /* ── Param rows ── */
@@ -327,39 +329,39 @@ html, body {
 
 /* ── Persistent Hints Bar with Gesture Demo ── */
 .hints-bar {
-  position: fixed; top: 42px; left: 0; right: 0; z-index: 99;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 4px 16px;
-  background: rgba(10,10,15,0.55);
-  backdrop-filter: blur(4px);
-  font-size: 11px; color: #aaaacc;
+  position: fixed; top: 32px; left: 0; right: 0; z-index: 99;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 1px 12px;
+  background: rgba(10,10,15,0.45);
+  backdrop-filter: blur(3px);
+  font-size: 10px; color: #aaaacc;
   pointer-events: none;
   white-space: nowrap; overflow: hidden;
 }
-[data-theme="light"] .hints-bar { color: #3a3a50; background: rgba(255,255,255,0.65); }
+[data-theme="light"] .hints-bar { color: #3a3a50; background: rgba(255,255,255,0.6); }
 .hints-divider { color: var(--line); margin: 0 2px; }
 
 .gesture-demo {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 5px;
   pointer-events: auto;
   flex-shrink: 0;
 }
 #gesture-anim-canvas {
   display: block;
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(0,0,0,0.2);
   flex-shrink: 0;
 }
 [data-theme="light"] #gesture-anim-canvas { background: rgba(0,0,0,0.06); }
 
 .gesture-demo__label {
-  font-size: 11px; font-weight: 600; color: var(--accent);
-  min-width: 28px; text-align: center;
+  font-size: 10px; font-weight: 600; color: var(--accent);
+  min-width: 22px; text-align: center;
   transition: all 0.3s ease;
 }
 .gesture-demo__hint {
-  font-size: 10px; color: var(--text-dim);
-  min-width: 48px; text-align: left;
+  font-size: 9px; color: var(--text-dim);
+  min-width: 40px; text-align: left;
   transition: all 0.3s ease;
 }
 [data-theme="light"] .gesture-demo__hint { color: #4a4a60; }
@@ -381,9 +383,9 @@ html, body {
   .selector-action { padding: 5px 8px; font-size: 11px; }
   #param-panel { width: calc(100vw - 24px); left: 12px; max-height: 50vh; }
   #param-panel-body { max-height: calc(50vh - 40px); }
-  #hand-preview { right: 12px; }
-  #hand-preview-canvas { width: 160px; height: 120px; }
-  .slider-group input[type="range"] { width: 56px; }
+  #hand-preview { right: 4px; }
+  #hand-preview-canvas { width: 120px; height: 68px; }
+  .slider-group input[type="range"] { width: 48px; }
   .slider-group label { font-size: 10px; }
 }
 
