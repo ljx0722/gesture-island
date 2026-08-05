@@ -3,15 +3,19 @@ export class PaintingSampler {
   constructor(options = {}) {
     this.sampleDensity = options.sampleDensity ?? 3
     this.skipThreshold = options.skipThreshold ?? 15
+    this.maxDimension = options.maxDimension ?? 1280
+    this.maxParticles = options.maxParticles ?? 120000
+    this.lastSampleDensity = this.sampleDensity
   }
 
   async sample(imageUrl) {
     const image = await this._loadImage(imageUrl)
     const { data, width, height } = this._getImageData(image)
+    const density = this._effectiveDensity(width, height)
     const particles = []
 
-    for (let y = 0; y < height; y += this.sampleDensity) {
-      for (let x = 0; x < width; x += this.sampleDensity) {
+    for (let y = 0; y < height; y += density) {
+      for (let x = 0; x < width; x += density) {
         const idx = (y * width + x) * 4
         const r = data[idx]
         const g = data[idx + 1]
@@ -20,7 +24,6 @@ export class PaintingSampler {
 
         if (luminance < this.skipThreshold) continue
 
-        // Sobel edge detection
         const gx = this._sobelX(data, width, height, x, y)
         const gy = this._sobelY(data, width, height, x, y)
         const strokeAngle = Math.atan2(gy, gx)
@@ -41,6 +44,14 @@ export class PaintingSampler {
     return { particles, imageWidth: width, imageHeight: height }
   }
 
+  _effectiveDensity(width, height) {
+    const base = Math.max(1, Math.round(this.sampleDensity))
+    const estimated = (width * height) / (base * base)
+    const density = estimated > this.maxParticles ? Math.ceil(Math.sqrt((width * height) / this.maxParticles)) : base
+    this.lastSampleDensity = density
+    return density
+  }
+
   _loadImage(url) {
     return new Promise((resolve, reject) => {
       const img = new Image()
@@ -52,11 +63,12 @@ export class PaintingSampler {
   }
 
   _getImageData(image) {
+    const scale = Math.min(1, this.maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
     const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    ctx.drawImage(image, 0, 0)
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     return { data: imageData.data, width: canvas.width, height: canvas.height }
   }

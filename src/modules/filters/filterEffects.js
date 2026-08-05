@@ -198,6 +198,74 @@ export function applyGlitchArt(r, g, b, x, y, maskAlpha, p, t) {
   }
 }
 
+export function applyCustomMagic(r, g, b, x, y, maskAlpha, p, t) {
+  const intensity = p.intensity ?? 0.85
+  const scale = Math.max(0.1, p.patternScale ?? 1.5)
+  const speed = p.animationSpeed ?? 1
+  const time = t * speed
+  const primary = p.primaryRgb || [255, 79, 216]
+  const secondary = p.secondaryRgb || [64, 220, 255]
+  const gray = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  let pattern = 0
+
+  if (p.pattern === 'dots') {
+    const cell = 18 / scale
+    const cx = ((x + time * 25) % cell) - cell / 2
+    const cy = ((y - time * 15) % cell) - cell / 2
+    pattern = 1 - Math.min(1, Math.sqrt(cx * cx + cy * cy) / (cell * 0.42))
+  } else if (p.pattern === 'stripes') {
+    pattern = Math.sin((x * 0.08 + y * 0.04) * scale + time * 3) * 0.5 + 0.5
+  } else if (p.pattern === 'checker') {
+    const cell = Math.max(4, 28 / scale)
+    pattern = ((Math.floor((x + time * 18) / cell) + Math.floor(y / cell)) % 2) ? 0.85 : 0.15
+  } else if (p.pattern === 'stars') {
+    const n = noise2d(Math.floor(x / 12), Math.floor(y / 12), Math.floor(time * 4))
+    const twinkle = Math.sin(time * 8 + n * 20) * 0.5 + 0.5
+    pattern = n > 0.72 ? twinkle : Math.sin((x + y) * 0.025 * scale + time) * 0.25 + 0.35
+  } else {
+    pattern = Math.sin(x * 0.025 * scale + Math.sin(y * 0.018 * scale + time) * 2 + time * 2) * 0.5 + 0.5
+  }
+
+  let c1 = primary
+  let c2 = secondary
+  if (p.rainbow) {
+    const hue = (x * 0.0015 * scale + y * 0.001 * scale + time * 0.08 + gray * 0.25) % 1
+    const rainbowA = hslToRgb(hue, 0.9, 0.58)
+    const rainbowB = hslToRgb((hue + 0.35) % 1, 0.9, 0.55)
+    c1 = [rainbowA.r, rainbowA.g, rainbowA.b]
+    c2 = [rainbowB.r, rainbowB.g, rainbowB.b]
+  }
+
+  let tr = lerp(c1[0], c2[0], pattern)
+  let tg = lerp(c1[1], c2[1], pattern)
+  let tb = lerp(c1[2], c2[2], pattern)
+
+  if (p.mixMode === 'duotone') {
+    tr = lerp(c1[0], c2[0], gray)
+    tg = lerp(c1[1], c2[1], gray)
+    tb = lerp(c1[2], c2[2], gray)
+  } else if (p.mixMode === 'poster') {
+    const band = Math.floor(gray * 4) / 3
+    tr = lerp(c1[0], c2[0], Math.min(1, band))
+    tg = lerp(c1[1], c2[1], Math.min(1, band))
+    tb = lerp(c1[2], c2[2], Math.min(1, band))
+  } else if (p.mixMode === 'glow') {
+    const glow = 0.65 + pattern * 0.55
+    tr *= glow; tg *= glow; tb *= glow
+  } else {
+    tr = lerp(r, tr, 0.75)
+    tg = lerp(g, tg, 0.75)
+    tb = lerp(b, tb, 0.75)
+  }
+
+  const sparkle = (p.sparkle ?? 0.35) * (noise2d(Math.floor(x / 5), Math.floor(y / 5), Math.floor(time * 8)) > 0.86 ? 85 : 0)
+  return {
+    r: clampByte(lerp(r, tr + sparkle, intensity)),
+    g: clampByte(lerp(g, tg + sparkle, intensity)),
+    b: clampByte(lerp(b, tb + sparkle, intensity)),
+  }
+}
+
 // ── utility ──
 function lerp(a, b, t) { return a + (b - a) * t }
 function lerpPixel(orig, tr, tg, tb, intensity) {
@@ -208,6 +276,10 @@ function lerpPixel(orig, tr, tg, tb, intensity) {
   }
 }
 function clampByte(v) { return Math.max(0, Math.min(255, Math.round(v))) }
+function noise2d(x, y, seed = 0) {
+  const s = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453
+  return s - Math.floor(s)
+}
 
 function hslToRgb(h, s, l) {
   let r, g, b
@@ -246,4 +318,5 @@ export const FILTER_APPLIERS = {
   'rainbow-holo': applyRainbowHolo,
   'negative-invert': applyNegativeInvert,
   'glitch-art': applyGlitchArt,
+  'custom-magic': applyCustomMagic,
 }

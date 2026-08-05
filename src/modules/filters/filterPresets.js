@@ -1,5 +1,5 @@
 // filterPresets.js — 15 种滤镜定义 + 参数 schema
-export const FILTER_CATEGORIES = ['复古', '科技', '艺术', '实验']
+export const FILTER_CATEGORIES = ['复古', '科技', '艺术', '实验', '魔法']
 
 export const FILTER_PRESETS = [
   {
@@ -128,13 +128,29 @@ export const FILTER_PRESETS = [
     }
   },
   {
-    id: 'glitch-art', name: '故障艺术', category: '实验',
+    id: 'custom-magic', name: '自定义魔法滤镜', category: '魔法',
     params: {
-      intensity:    { label: '强度', min: 0, max: 1, step: 0.01, default: 0.75 },
-      rgbShiftX:    { label: 'RGB水平撕裂', min: 0, max: 20, step: 0.5, default: 5 },
-      rgbShiftY:    { label: 'RGB垂直撕裂', min: 0, max: 10, step: 0.5, default: 2 },
-      sliceHeight:  { label: '切片高度', min: 4, max: 40, step: 1, default: 12 },
-      glitchChance: { label: '故障概率', min: 0, max: 1, step: 0.01, default: 0.3 },
+      intensity:      { label: '魔法强度', min: 0, max: 1, step: 0.01, default: 0.85 },
+      primaryColor:   { type: 'color', label: '主颜色', default: '#ff4fd8' },
+      secondaryColor: { type: 'color', label: '副颜色', default: '#40dcff' },
+      pattern:        { type: 'select', label: '图案', default: 'waves', options: [
+        { value: 'waves', label: '波浪' },
+        { value: 'dots', label: '圆点' },
+        { value: 'stripes', label: '条纹' },
+        { value: 'checker', label: '棋盘' },
+        { value: 'stars', label: '星光' },
+      ] },
+      patternScale:   { label: '图案大小', min: 0.3, max: 5, step: 0.05, default: 1.5 },
+      animationSpeed: { label: '动画速度', min: 0, max: 4, step: 0.05, default: 1.0 },
+      mixMode:        { type: 'select', label: '混合方式', default: 'glow', options: [
+        { value: 'tint', label: '染色' },
+        { value: 'duotone', label: '双色' },
+        { value: 'glow', label: '发光' },
+        { value: 'poster', label: '海报' },
+      ] },
+      sparkle:        { label: '闪光', min: 0, max: 1, step: 0.01, default: 0.35 },
+      rainbow:        { type: 'toggle', label: '彩虹模式', default: false },
+      randomize:      { type: 'button', label: '随机魔法', buttonLabel: '随机魔法', action: 'randomizeCustomFilter' },
     }
   },
 ]

@@ -459,9 +459,14 @@ function _renderFilterSelector() {
 function _renderPaintingSelector() {
   paintingSelector.classList.remove('hidden')
   let html = ''
+  const currentPainting = paintingModule?.getCurrentPainting()
   PAINTING_PRESETS.forEach((p, i) => {
-    html += `<button class="painting-pill${i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
+    html += `<button class="painting-pill${!paintingModule?._customPainting && i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
   })
+  if (paintingModule?._customPainting) {
+    html += `<button class="painting-pill active" type="button">${currentPainting.title}</button>`
+  }
+  html += `<button class="upload-btn" id="upload-painting-btn">上传图片</button>`
   html += `<button class="fullscreen-btn" id="fullscreen-btn">全屏</button>`
   paintingSelector.innerHTML = html
 
@@ -475,6 +480,28 @@ function _renderPaintingSelector() {
       _showParamPanel('paintings')
     })
   })
+  document.getElementById('upload-painting-btn')?.addEventListener('click', () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/webp'
+    input.addEventListener('change', async () => {
+      const file = input.files[0]
+      if (!file) return
+      try {
+        statusDisplay.showLoading('正在把图片变成粒子画...')
+        await paintingModule?.uploadPainting(file)
+        statusDisplay.hideLoading()
+        statusDisplay.showToast(`已加载：${file.name}`, 'info', 2000)
+        _renderPaintingSelector()
+        _showParamPanel('paintings')
+      } catch (e) {
+        statusDisplay.hideLoading()
+        statusDisplay.showError(e.message)
+      }
+    })
+    input.click()
+  })
+
   document.getElementById('fullscreen-btn')?.addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen()
     else document.documentElement.requestFullscreen().catch(() => {})
@@ -500,6 +527,10 @@ function _showParamPanel(moduleId) {
     const filter = filterModule?.getCurrentFilter()
     if (!filter) return
     paramPanel.setModule('filters', filter.params, filterModule?.filterParams || {}, (key, val) => {
+      if (val === 'randomizeCustomFilter') {
+        _randomizeCustomFilter()
+        return
+      }
       filterModule?.setFilterParam(key, val)
     })
   } else if (moduleId === 'paintings') {
@@ -515,6 +546,27 @@ function _showParamPanel(moduleId) {
       paintingModule?.setParams(params)
     })
   }
+}
+
+function _randomizeCustomFilter() {
+  if (!filterModule || filterModule.currentFilterId !== 'custom-magic') return
+  const colors = ['#ff4fd8', '#40dcff', '#ffe45c', '#7cff6b', '#ff7a3d', '#9b6bff', '#ffffff']
+  const patterns = ['waves', 'dots', 'stripes', 'checker', 'stars']
+  const modes = ['tint', 'duotone', 'glow', 'poster']
+  const pick = (items) => items[Math.floor(Math.random() * items.length)]
+  filterModule.setFilterParams({
+    intensity: 0.65 + Math.random() * 0.35,
+    primaryColor: pick(colors),
+    secondaryColor: pick(colors),
+    pattern: pick(patterns),
+    patternScale: 0.7 + Math.random() * 3.8,
+    animationSpeed: 0.4 + Math.random() * 2.8,
+    mixMode: pick(modes),
+    sparkle: Math.random() * 0.85,
+    rainbow: Math.random() > 0.55,
+  })
+  _showParamPanel('filters')
+  statusDisplay.showToast('随机魔法已生成', 'info', 1200)
 }
 
 // ── Events ──
@@ -549,6 +601,8 @@ function _bindEvents() {
         else document.documentElement.requestFullscreen().catch(() => {})
         break
       }
+      case 'r': case 'R': if (!e.ctrlKey && !e.metaKey && currentModule === 'filters') _randomizeCustomFilter(); break
+      case 'u': case 'U': if (!e.ctrlKey && !e.metaKey && currentModule === 'paintings') document.getElementById('upload-painting-btn')?.click(); break
       case 'Escape': if (demoActive) toggleDemo(); break
     }
   })

@@ -17,6 +17,7 @@ export class FilterModule {
 
     this.currentFilterId = 'vintage-halftone'
     this.filterParams = {}
+    this.preparedFilterParams = {}
     this.time = 0
 
     // Offscreen canvases
@@ -36,11 +37,36 @@ export class FilterModule {
 
   _loadDefaultParams() {
     const preset = getFilterById(this.currentFilterId)
+    this.filterParams = {}
     if (preset) {
       for (const [key, p] of Object.entries(preset.params)) {
         this.filterParams[key] = p.default
       }
     }
+    this._prepareFilterParams()
+  }
+
+  _prepareFilterParams() {
+    const preset = getFilterById(this.currentFilterId)
+    const prepared = { ...this.filterParams }
+    if (preset) {
+      for (const [key, def] of Object.entries(preset.params)) {
+        const type = def.type || 'range'
+        if (type === 'range' && typeof prepared[key] === 'number') {
+          prepared[key] = Math.max(def.min, Math.min(def.max, prepared[key]))
+        }
+        if (type === 'color') {
+          prepared[`${key.replace(/Color$/, '')}Rgb`] = this._hexToRgb(prepared[key] || def.default)
+        }
+      }
+    }
+    this.preparedFilterParams = prepared
+  }
+
+  _hexToRgb(hex) {
+    const clean = String(hex || '').replace('#', '')
+    if (!/^[0-9a-fA-F]{6}$/.test(clean)) return [255, 255, 255]
+    return [parseInt(clean.slice(0, 2), 16), parseInt(clean.slice(2, 4), 16), parseInt(clean.slice(4, 6), 16)]
   }
 
   async init(options = {}) {
@@ -67,6 +93,7 @@ export class FilterModule {
         newParams[key] = this.filterParams[key] ?? p.default
       }
       this.filterParams = newParams
+      this._prepareFilterParams()
     }
     return preset
   }
@@ -168,7 +195,7 @@ export class FilterModule {
 
           // Only filter foreground (person)
           if (maskAlpha > 10 && applyFilter) {
-            const p = this.filterParams
+            const p = this.preparedFilterParams
             const result = applyFilter(r, g, b, bx + px, by + py, maskAlpha, p, this.time)
             filteredData.data[idx] = result.r
             filteredData.data[idx + 1] = result.g
@@ -342,7 +369,7 @@ export class FilterModule {
           const gg = Math.min(255, gradVal + 15)
           const bb = Math.min(255, gradVal - 10)
 
-          const p = this.filterParams
+          const p = this.preparedFilterParams
           const result = applyFilter(r, gg, bb, wx, wy, 200, p, this.time)
           data.data[idx] = result.r
           data.data[idx + 1] = result.g
@@ -368,6 +395,12 @@ export class FilterModule {
 
   setFilterParam(key, value) {
     this.filterParams[key] = value
+    this._prepareFilterParams()
+  }
+
+  setFilterParams(params) {
+    Object.assign(this.filterParams, params)
+    this._prepareFilterParams()
   }
 
   resetFilterParams() {
