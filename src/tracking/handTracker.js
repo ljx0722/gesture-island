@@ -31,10 +31,19 @@ let _preloadPromise = null
 export function preloadHandTracker() {
   if (!_preloadPromise) {
     _preloadPromise = (async () => {
-      if (!FilesetResolver) {
-        const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
-        FilesetResolver = visionModule.FilesetResolver
-        HandLandmarker = visionModule.HandLandmarker
+      if (FilesetResolver) return true
+      try {
+        const m = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
+        FilesetResolver = m.FilesetResolver
+        HandLandmarker = m.HandLandmarker
+      } catch {
+        try {
+          const m = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
+          FilesetResolver = m.FilesetResolver
+          HandLandmarker = m.HandLandmarker
+        } catch {
+          // Silently fail — createHandTracker will retry when user clicks camera
+        }
       }
       return true
     })()
@@ -55,24 +64,25 @@ export async function createHandTracker(options = {}) {
     onProgress = null,
   } = options
 
-  if (!FilesetResolver) {
-    try {
-      onProgress?.({ stage: 'hand', progress: 0.2, text: '正在加载MediaPipe WASM...' })
-      // Wait for preload if started, otherwise load now
-      if (_preloadPromise) {
-        await _preloadPromise
-      } else {
+  // Wait for preload if started, then load inline if still not ready
+  if (!FilesetResolver || !HandLandmarker) {
+    if (_preloadPromise) {
+      try { await _preloadPromise } catch { /* preload failed, will load inline */ }
+    }
+    if (!FilesetResolver || !HandLandmarker) {
+      try {
+        onProgress?.({ stage: 'hand', progress: 0.2, text: '正在加载MediaPipe WASM...' })
         const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
         FilesetResolver = visionModule.FilesetResolver
         HandLandmarker = visionModule.HandLandmarker
-      }
-    } catch {
-      try {
-        const visionModule = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
-        FilesetResolver = visionModule.FilesetResolver
-        HandLandmarker = visionModule.HandLandmarker
-      } catch (e2) {
-        throw new Error(`手势模型加载失败：无法从CDN加载MediaPipe库。请检查网络连接后重试。`)
+      } catch {
+        try {
+          const visionModule = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
+          FilesetResolver = visionModule.FilesetResolver
+          HandLandmarker = visionModule.HandLandmarker
+        } catch (e2) {
+          throw new Error(`手势模型加载失败：无法从CDN加载MediaPipe库。请检查网络连接后重试。`)
+        }
       }
     }
   }
