@@ -8,6 +8,7 @@ import { ParamPanel } from './ui/paramPanel.js'
 import { PRESETS } from './modules/particles/particlePresets.js'
 import { PAINTING_PRESETS } from './modules/paintings/paintingPresets.js'
 import { FILTER_PRESETS } from './modules/filters/filterPresets.js'
+import { preloadHandTracker } from './tracking/handTracker.js'
 
 // DOM refs
 const container = document.getElementById('canvas-container')
@@ -65,6 +66,9 @@ async function init() {
 
   // Start render loop
   _startRenderLoop()
+
+  // Preload hand tracker in background so camera starts faster later
+  preloadHandTracker().catch(() => {})
 }
 
 function resizeCanvas() {

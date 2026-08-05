@@ -25,6 +25,23 @@ function normalizeHandedness(label) {
   return (v === 'left' || v === 'right') ? v : 'unknown'
 }
 
+// Preload promise — call early so CDN/WASM downloads overlap with page init
+let _preloadPromise = null
+
+export function preloadHandTracker() {
+  if (!_preloadPromise) {
+    _preloadPromise = (async () => {
+      if (!FilesetResolver) {
+        const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
+        FilesetResolver = visionModule.FilesetResolver
+        HandLandmarker = visionModule.HandLandmarker
+      }
+      return true
+    })()
+  }
+  return _preloadPromise
+}
+
 export { HAND_CONNECTIONS, PALM_INDICES }
 
 export async function createHandTracker(options = {}) {
@@ -41,9 +58,14 @@ export async function createHandTracker(options = {}) {
   if (!FilesetResolver) {
     try {
       onProgress?.({ stage: 'hand', progress: 0.2, text: '正在加载MediaPipe WASM...' })
-      const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
-      FilesetResolver = visionModule.FilesetResolver
-      HandLandmarker = visionModule.HandLandmarker
+      // Wait for preload if started, otherwise load now
+      if (_preloadPromise) {
+        await _preloadPromise
+      } else {
+        const visionModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm')
+        FilesetResolver = visionModule.FilesetResolver
+        HandLandmarker = visionModule.HandLandmarker
+      }
     } catch {
       try {
         const visionModule = await import('https://unpkg.com/@mediapipe/tasks-vision@0.10.18/dist/vision_bundle.mjs')
