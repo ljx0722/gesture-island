@@ -825,7 +825,13 @@ function _bindEvents() {
     btn.addEventListener('click', () => switchModule(btn.dataset.module))
   })
 
-  paramToggle.addEventListener('click', () => paramPanel.toggle())
+  paramToggle.addEventListener('click', () => {
+    if (paramPanel.el.classList.contains('hidden')) {
+      _showParamPanel(currentModule)
+    } else {
+      paramPanel.hide()
+    }
+  })
 
   btnCamera.addEventListener('click', async () => {
     if (cameraActive) await _stopCamera()
