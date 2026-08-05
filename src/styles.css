@@ -5,9 +5,9 @@
   --surface: rgba(20, 20, 35, 0.85);
   --surface-hover: rgba(30, 30, 50, 0.9);
   --text: #e0e0e0;
-  --text-dim: #8888a0;
+  --text-dim: #9999b0;
   --accent: #6c8cff;
-  --accent-glow: rgba(108, 140, 255, 0.4);
+  --accent-glow: rgba(108, 140, 255, 0.5);
   --danger: #ff5c6c;
   --success: #4ecb71;
   --line: rgba(255, 255, 255, 0.08);
@@ -41,7 +41,7 @@ html, body {
 }
 .brand-logo {
   font-size: 18px; color: var(--accent);
-  text-shadow: 0 0 10px var(--accent-glow);
+  text-shadow: 0 0 12px var(--accent-glow);
   flex-shrink: 0;
 }
 .brand-divider { width: 1px; height: 18px; background: var(--line); flex-shrink: 0; }
@@ -331,11 +331,11 @@ html, body {
   text-align: center; padding: 3px 12px;
   background: rgba(10,10,15,0.55);
   backdrop-filter: blur(4px);
-  font-size: 11px; color: var(--text-dim);
+  font-size: 11px; color: #aaaacc;
   pointer-events: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-[data-theme="light"] .hints-bar { background: rgba(255,255,255,0.5); color: #777; }
+[data-theme="light"] .hints-bar { color: #3a3a50; background: rgba(255,255,255,0.65); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
@@ -437,7 +437,7 @@ html, body {
   --surface: rgba(255,255,255,0.92);
   --surface-hover: rgba(240,240,248,0.95);
   --text: #1a1a2e;
-  --text-dim: #555570;
+  --text-dim: #4a4a60;
   --line: rgba(0,0,0,0.1);
   --accent: #3d5ce5;
   --accent-glow: rgba(61,92,229,0.25);
@@ -448,12 +448,24 @@ html, body {
 [data-theme="light"] .selector-panel,
 [data-theme="light"] .overlay-panel,
 [data-theme="light"] .challenge-bar { border-color: rgba(0,0,0,0.1); }
-[data-theme="light"] .tab-btn { color: #444; }
+[data-theme="light"] .tab-btn { color: #3a3a50; }
 [data-theme="light"] .tab-btn:hover { color: #1a1a2e; background: rgba(0,0,0,0.06); }
 [data-theme="light"] .brand-logo { color: var(--accent); }
-[data-theme="light"] .ctrl-btn { color: #333; }
-[data-theme="light"] .selector-dot { background: rgba(0,0,0,0.15); }
+[data-theme="light"] .ctrl-btn { color: #2a2a40; }
+[data-theme="light"] .selector-dot { background: rgba(0,0,0,0.18); }
+[data-theme="light"] .selector-dot.active { background: var(--accent); }
 [data-theme="light"] #hand-preview-canvas { background: #e8e8ee; }
+[data-theme="light"] #status-text { color: #4a4a60; }
+[data-theme="light"] .hints-bar { color: #3a3a50; background: rgba(255,255,255,0.65); }
+[data-theme="light"] .fps { color: #5a5a70; }
+[data-theme="light"] .slider-group label { color: #4a4a60; }
+[data-theme="light"] .selector-name { color: #1a1a2e; }
+[data-theme="light"] .param-row .param-value { color: #4a4a60; }
+[data-theme="light"] .overlay-panel__title { color: #4a4a60; }
+[data-theme="light"] .onboarding-body p,
+[data-theme="light"] .onboarding-body .onboarding-hint { color: #4a4a50; }
+[data-theme="light"] .challenge-bar { color: #1a1a2e; }
+[data-theme="light"] #challenge-timer { color: #5a5a70; }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
@@ -461,9 +473,20 @@ html, body {
     --surface: rgba(255,255,255,0.92);
     --surface-hover: rgba(240,240,248,0.95);
     --text: #1a1a2e;
-    --text-dim: #555570;
+    --text-dim: #4a4a60;
     --line: rgba(0,0,0,0.1);
     --accent: #3d5ce5;
     --accent-glow: rgba(61,92,229,0.25);
   }
+  :root:not([data-theme]) #brand-bar { background: rgba(255,255,255,0.94); border-bottom-color: rgba(0,0,0,0.08); }
+  :root:not([data-theme]) #bottom-bar { background: linear-gradient(0deg, rgba(255,255,255,0.95) 60%, rgba(255,255,255,0) 100%); }
+  :root:not([data-theme]) .loading-overlay { background: rgba(244,244,248,0.92); }
+  :root:not([data-theme]) .tab-btn { color: #3a3a50; }
+  :root:not([data-theme]) .tab-btn:hover { color: #1a1a2e; background: rgba(0,0,0,0.06); }
+  :root:not([data-theme]) .ctrl-btn { color: #2a2a40; }
+  :root:not([data-theme]) .selector-dot { background: rgba(0,0,0,0.18); }
+  :root:not([data-theme]) .selector-dot.active { background: var(--accent); }
+  :root:not([data-theme]) #hand-preview-canvas { background: #e8e8ee; }
+  :root:not([data-theme]) .hints-bar { color: #3a3a50; background: rgba(255,255,255,0.65); }
+  :root:not([data-theme]) .selector-name { color: #1a1a2e; }
 }
