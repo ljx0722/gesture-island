@@ -11,13 +11,13 @@ export class ParticleModule {
 
     this.renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-    this.renderer.setSize(container.clientWidth, container.clientHeight, false)
+    this._initSize(container)
     this.renderer.outputColorSpace = T.SRGBColorSpace
     this.renderer.toneMapping = T.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.2
 
     this.scene = new T.Scene()
-    this.camera = new T.PerspectiveCamera(55, container.clientWidth / Math.max(1, container.clientHeight), 0.1, 50)
+    this.camera = new T.PerspectiveCamera(55, this._safeW(container) / Math.max(1, this._safeH(container)), 0.1, 50)
     this.camera.position.set(0, 0.3, 5)
 
     if (T.OrbitControls) {
@@ -46,7 +46,7 @@ export class ParticleModule {
     }
 
     this._onResize = () => {
-      const w = container.clientWidth, h = container.clientHeight
+      const w = this._safeW(container), h = this._safeH(container)
       if (w > 0 && h > 0) {
         this.renderer.setSize(w, h, false)
         this.camera.aspect = w / h
@@ -55,6 +55,11 @@ export class ParticleModule {
     }
     window.addEventListener('resize', this._onResize)
   }
+
+  _safeW(c) { return c.clientWidth || window.innerWidth || 1024 }
+  _safeH(c) { return c.clientHeight || window.innerHeight || 768 }
+  _initSize(c) { this.renderer.setSize(this._safeW(c), this._safeH(c), false) }
+  resize() { this._onResize() }
 
   async init() { this._loadPreset(0) }
 

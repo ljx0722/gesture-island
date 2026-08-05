@@ -52,9 +52,11 @@ async function init() {
 
   // Init particle module (default tab)
   try {
+    document.getElementById('app').style.display = 'flex'
+    await new Promise(resolve => requestAnimationFrame(resolve))
     resizeCanvas()
     await _initParticlesModule()
-    document.getElementById('app').style.display = 'flex'
+    particleModule?.setGestureOpenness(0.5)
     statusDisplay.hideLoading()
   } catch (e) {
     console.error('Particle module init error:', e)
@@ -66,14 +68,16 @@ async function init() {
 }
 
 function resizeCanvas() {
-  const w = container.clientWidth
-  const h = container.clientHeight
+  const w = container.clientWidth || window.innerWidth || 1024
+  const h = container.clientHeight || window.innerHeight || 768
   if (w > 0 && h > 0) {
     threeCanvas.width = w
     threeCanvas.height = h
     cameraCanvas.width = w
     cameraCanvas.height = h
   }
+  particleModule?.resize?.()
+  paintingModule?.resize?.()
 }
 
 async function _initParticlesModule() {
@@ -235,6 +239,10 @@ function _subscribePipeline() {
 async function switchModule(moduleId) {
   if (currentModule === moduleId) return
 
+  // Stop inactive Three.js render loops
+  if (currentModule === 'particles') particleModule?.stop()
+  if (currentModule === 'paintings') paintingModule?.stop()
+
   threeCanvas.classList.add('hidden')
   cameraCanvas.classList.add('hidden')
   document.querySelectorAll('.module-ui').forEach(el => el.classList.add('hidden'))
@@ -389,9 +397,9 @@ function _renderPresetGallery() {
   presetGallery.classList.remove('hidden')
   let html = ''
   PRESETS.forEach((p, i) => {
-    html += `<button class="preset-chip${i === (particleModule?.currentPresetIdx ?? 0) ? ' active' : ''}" data-preset="${i}">${p.name}</button>`
+    html += `<button class="preset-chip selector-chip${i === (particleModule?.currentPresetIdx ?? 0) ? ' active' : ''}" data-preset="${i}">${p.name}</button>`
   })
-  html += `<button class="upload-btn" id="upload-model-btn">上传模型</button>`
+  html += `<button class="upload-btn selector-action" id="upload-model-btn">上传模型</button>`
   presetGallery.innerHTML = html
 
   presetGallery.querySelectorAll('.preset-chip').forEach(btn => {
@@ -429,12 +437,12 @@ function _renderFilterSelector() {
   filterSelector.classList.remove('hidden')
   const current = filterModule?.currentFilterId || 'vintage-halftone'
   const currentFilter = FILTER_PRESETS.find(f => f.id === current)
-  let html = `<button class="filter-arrow" id="filter-prev">◀</button>
-    <span class="filter-name">${currentFilter?.name || ''}</span>
-    <button class="filter-arrow" id="filter-next">▶</button>
-    <div class="filter-dots">`
+  let html = `<button class="filter-arrow selector-arrow" id="filter-prev">◀</button>
+    <span class="filter-name selector-name">${currentFilter?.name || ''}</span>
+    <button class="filter-arrow selector-arrow" id="filter-next">▶</button>
+    <div class="filter-dots selector-dots">`
   FILTER_PRESETS.forEach(f => {
-    html += `<span class="filter-dot${f.id === current ? ' active' : ''}" data-filter="${f.id}" title="${f.name}"></span>`
+    html += `<span class="filter-dot selector-dot${f.id === current ? ' active' : ''}" data-filter="${f.id}" title="${f.name}"></span>`
   })
   html += `</div>`
   filterSelector.innerHTML = html
@@ -463,16 +471,16 @@ function _renderPaintingSelector() {
   let html = ''
   const currentPainting = paintingModule?.getCurrentPainting()
   PAINTING_PRESETS.forEach((p, i) => {
-    html += `<button class="painting-pill${!paintingModule?._customPainting && i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
+    html += `<button class="painting-pill selector-chip${!paintingModule?._customPainting && i === (paintingModule?._currentIdx ?? 0) ? ' active' : ''}" data-painting="${i}">${p.title}</button>`
   })
   if (paintingModule?._customPainting) {
-    html += `<button class="painting-pill active" type="button">${currentPainting.title}</button>`
+    html += `<button class="painting-pill selector-chip active" type="button">${currentPainting.title}</button>`
   }
-  html += `<button class="upload-btn" id="upload-painting-btn">上传图片</button>`
-  html += `<button class="fullscreen-btn" id="fullscreen-btn">全屏</button>`
+  html += `<button class="upload-btn selector-action" id="upload-painting-btn">上传图片</button>`
+  html += `<button class="fullscreen-btn selector-action" id="fullscreen-btn">全屏</button>`
   paintingSelector.innerHTML = html
 
-  paintingSelector.querySelectorAll('.painting-pill').forEach(btn => {
+  paintingSelector.querySelectorAll('.painting-pill[data-painting]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const idx = parseInt(btn.dataset.painting)
       statusDisplay.showLoading('正在切换画作...')
