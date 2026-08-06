@@ -47,7 +47,13 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform float uBrushLength;
+uniform float uBrushRoundness;
 uniform float uTime;
+uniform float uSaturation;
+uniform float uContrast;
+uniform float uBrightness;
+uniform float uColorTemperature;
+uniform float uOpacity;
 varying vec3 vColor;
 varying float vBrightness;
 varying float vStrokeAngle;

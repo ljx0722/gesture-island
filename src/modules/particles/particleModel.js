@@ -61,9 +61,9 @@ void main() {
     float rr = abs(sx) + abs(sy);
     d = rr * 1.6;
   } else {
-    float a = atan(c.y, c.x);
+    float angle = atan(c.y, c.x);
     float r = length(c) * 2.0;
-    d = r * (0.65 + 0.35 * cos(a * 5.0));
+    d = r * (0.65 + 0.35 * cos(angle * 5.0));
   }
   float a = 1.0 - smoothstep(0.15, 1.0, d);
   a *= a * vAlpha * uOpacity * (0.75 + vRandom * 0.25);
