@@ -34,6 +34,7 @@
       </nav>
       <button id="theme-toggle" title="切换亮色/暗色主题">&#9788;</button>
       <button id="param-toggle" class="icon-btn" title="参数面板">&#9881;</button>
+      <button id="project-toggle" class="icon-btn" title="我的作品">&#9733;</button>
     </div>
     <div id="canvas-container">
       <canvas id="three-canvas" class="module-canvas"></canvas>
@@ -58,6 +59,13 @@
       <div class="overlay-panel__title">参数面板</div>
       <div id="param-panel-body"></div>
     </div>
+    <div id="project-panel" class="overlay-panel overlay-panel--right hidden">
+      <div class="overlay-panel__title">我的创作</div>
+      <div class="project-create-row"><input id="project-title" maxlength="40" placeholder="给作品起个名字" /><button id="project-save" class="ctrl-btn">保存</button></div>
+      <textarea id="project-note" maxlength="120" placeholder="写一句：我的作品会怎样变化？"></textarea>
+      <div id="project-list"></div>
+      <button id="project-variation" class="ctrl-btn project-variation-btn">从当前作品生成变奏</button>
+    </div>
     <div id="hand-preview" class="overlay-panel overlay-panel--right hidden">
       <div class="overlay-panel__title">手部预览</div>
       <canvas id="hand-preview-canvas" width="160" height="90"></canvas>
@@ -77,6 +85,14 @@
         <button id="btn-camera" class="ctrl-btn">启动摄像头</button>
         <button id="btn-demo" class="ctrl-btn">演示模式</button>
         <button id="btn-reset" class="ctrl-btn">重置</button>
+        <select id="sound-theme" class="ctrl-select" title="作品氛围音">
+          <option value="none">无氛围</option>
+          <option value="dream">梦境</option>
+          <option value="space">星空</option>
+          <option value="forest">森林</option>
+          <option value="magic">魔法</option>
+        </select>
+        <button id="btn-inspire" class="ctrl-btn" title="随机生成颜色、造型和声音灵感">灵感变奏</button>
         <button id="btn-screenshot" class="ctrl-btn" title="截图 (S)">拍照</button>
         <button id="btn-mute" class="ctrl-btn" title="静音 (M)">声音</button>
         <button id="btn-challenge" class="ctrl-btn" title="挑战模式">挑战</button>

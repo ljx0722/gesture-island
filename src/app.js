@@ -14,6 +14,7 @@ import { AudioManager } from './ui/audioManager.js'
 import { Onboarding } from './ui/onboarding.js'
 import { ChallengeMode } from './ui/challengeMode.js'
 import { GestureAnimator } from './ui/gestureAnimator.js'
+import { ProjectStore } from './ui/projectStore.js'
 
 // DOM refs
 const container = document.getElementById('canvas-container')
@@ -46,6 +47,7 @@ let paintingModule = null
 let statusDisplay = null
 let paramPanel = null
 let audioManager = null
+let projectStore = null
 let onboarding = null
 let challengeMode = null
 let cameraActive = false
@@ -59,6 +61,7 @@ async function init() {
   statusDisplay = new StatusDisplay()
   paramPanel = new ParamPanel()
   audioManager = new AudioManager()
+  projectStore = new ProjectStore()
   onboarding = new Onboarding()
   challengeMode = new ChallengeMode()
   challengeMode.setAudio(audioManager)
@@ -116,6 +119,11 @@ async function init() {
   }
   _updateHints('particles')
   _startGestureDemo()
+  const soundTheme = document.getElementById('sound-theme')
+  if (soundTheme) soundTheme.value = audioManager.getTheme()
+  const muteButton = document.getElementById('btn-mute')
+  if (muteButton) muteButton.textContent = audioManager.isMuted() ? '静音' : '声音'
+  _renderProjectList()
 }
 
 function resizeCanvas() {
@@ -193,7 +201,7 @@ function _handleGesture(frameData) {
     lastGestureType = gesture
     const labels = { open: '张开手掌', fist: '握拳', pinch: '捏合', point: '指向', none: '待机' }
     statusDisplay.setHandStatus(frameData.handCount, labels[gesture] || '')
-    if (gesture !== 'none') audioManager?.gestureDetected()
+    if (gesture !== 'none') audioManager?.gestureDetected(gesture)
     challengeMode?.onGesture(gesture, frameData.openness ?? 0)
   }
 
@@ -790,7 +798,139 @@ function _randomizeCustomFilter() {
   statusDisplay.showToast('随机魔法已生成', 'info', 1200)
 }
 
-// ── Screenshot ──
+function _captureProjectState() {
+  const state = {
+    module: currentModule,
+    audio: { theme: audioManager?.getTheme?.() || 'none', muted: audioManager?.isMuted?.() || false },
+  }
+  if (currentModule === 'particles' && particleModule) {
+    state.scene = { module: 'particles', theme: ['星空', '自然', '几何', '幻想'][particleModule.currentPresetIdx % 4], presetIndex: particleModule.currentPresetIdx, params: { ...particleModule.params } }
+  } else if (currentModule === 'filters' && filterModule) {
+    state.scene = { module: 'filters', filterId: filterModule.currentFilterId, params: { ...filterModule.filterParams } }
+  } else if (currentModule === 'paintings' && paintingModule) {
+    state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
+  }
+  return state
+}
+
+function _saveProject() {
+  const titleInput = document.getElementById('project-title')
+  const noteInput = document.getElementById('project-note')
+  const title = titleInput?.value.trim() || '我的手势作品'
+  const project = projectStore.save({
+    id: window._currentProjectId,
+    title,
+    note: noteInput?.value.trim() || '',
+    ..._captureProjectState(),
+  })
+  window._currentProjectId = project.id
+  titleInput.value = project.title
+  _renderProjectList()
+  audioManager?.saveSound()
+  statusDisplay.showToast(`已保存《${project.title}》`, 'info', 1800)
+}
+
+function _restoreProject(project) {
+  if (!project?.scene) return
+  const scene = project.scene
+  if (scene.module !== currentModule) {
+    switchModule(scene.module).then(() => _restoreProject(project))
+    return
+  }
+  if (scene.module === 'particles' && particleModule) {
+    particleModule.selectPreset(scene.presetIndex || 0)
+    particleModule.setParams(scene.params || {})
+    _renderModuleControls('particles'); _showParamPanel('particles')
+  } else if (scene.module === 'filters' && filterModule) {
+    filterModule.selectFilter(scene.filterId || 'vintage-halftone')
+    filterModule.setFilterParams(scene.params || {})
+    _renderModuleControls('filters'); _showParamPanel('filters')
+  } else if (scene.module === 'paintings' && paintingModule) {
+    paintingModule.selectPainting(scene.paintingIndex || 0).then(() => {
+      paintingModule.setParams(scene.params || {})
+      _renderModuleControls('paintings'); _showParamPanel('paintings')
+    })
+  }
+  window._currentProjectId = project.id
+  document.getElementById('project-title').value = project.title || ''
+  document.getElementById('project-note').value = project.note || ''
+  audioManager?.setTheme(project.audio?.theme || 'none')
+  statusDisplay.showToast(`已打开《${project.title}》`, 'info', 1500)
+}
+
+function _renderProjectList() {
+  const list = document.getElementById('project-list')
+  if (!list || !projectStore) return
+  const projects = projectStore.list()
+  const moduleLabel = project => project.module === 'particles'
+    ? `粒子魔法${project.scene?.theme ? ` · ${project.scene.theme}` : ''}`
+    : project.module === 'filters' ? '魔法滤镜' : '我的画展'
+  list.innerHTML = projects.length ? projects.map(project => `<button class="project-item" data-project-id="${project.id}"><strong>${_escapeHtml(project.title)}</strong><small>${_escapeHtml(moduleLabel(project))}</small></button>`).join('') : '<div class="project-empty">还没有作品，先创造一个吧</div>'
+  list.querySelectorAll('.project-item').forEach(item => item.addEventListener('click', () => _restoreProject(projectStore.get(item.dataset.projectId))))
+}
+
+function _escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
+}
+
+function _createVariation() {
+  const current = window._currentProjectId ? projectStore?.get(window._currentProjectId) : null
+  if (!current) {
+    statusDisplay.showToast('请先保存一个作品，再生成变奏', 'warning', 1500)
+    return
+  }
+  const scene = JSON.parse(JSON.stringify(current.scene || {}))
+  const params = scene.params || {}
+  const vary = (key, amount, min, max) => {
+    if (typeof params[key] !== 'number') return
+    params[key] = Math.max(min, Math.min(max, params[key] + (Math.random() * 2 - 1) * amount))
+  }
+  if (scene.module === 'particles') {
+    const colors = ['#6c8cff', '#ff6cb5', '#65e6c5', '#ffd166', '#c084fc', '#ff8a5c']
+    params.color = colors[Math.floor(Math.random() * colors.length)]
+    vary('scatterDist', 0.45, 0.1, 3)
+    vary('noiseAmp', 0.2, 0, 1)
+    vary('rotationSpeed', 0.2, 0, 2)
+    scene.theme = ['星空', '自然', '几何', '幻想'][Math.floor(Math.random() * 4)]
+  } else if (scene.module === 'paintings') {
+    const colors = ['#0a0a1a', '#172554', '#3b1d5a', '#123d3d', '#422006']
+    params.bgColor = colors[Math.floor(Math.random() * colors.length)]
+    vary('noiseAmp', 0.2, 0, 1)
+    vary('wrapAngle', 0.2, 0.5, 2)
+  }
+  const variation = projectStore.save({ ...current, id: null, title: `${current.title} · 变奏`, scene, audio: { ...current.audio } })
+  _restoreProject(variation)
+  _renderProjectList()
+  audioManager?.saveSound()
+  statusDisplay.showToast('已生成新的变奏版本，原作品保持不变', 'info', 1800)
+}
+function _toggleProjectPanel() {
+  const panel = document.getElementById('project-panel')
+  if (!panel) return
+  panel.classList.toggle('hidden')
+  if (!panel.classList.contains('hidden')) _renderProjectList()
+}
+
+function _inspire() {
+  const colors = ['#6c8cff', '#ff6cb5', '#65e6c5', '#ffd166', '#c084fc', '#ff8a5c']
+  const color = colors[Math.floor(Math.random() * colors.length)]
+  if (currentModule === 'particles' && particleModule) {
+    particleModule.setParams({ color, scatterDist: 0.8 + Math.random() * 2.2, noiseAmp: Math.random() * 0.9, rotationSpeed: Math.max(0, (Math.random() - 0.2) * 0.8) })
+    _showParamPanel('particles')
+  } else if (currentModule === 'paintings' && paintingModule) {
+    paintingModule.setParams({ bgColor: color, noiseAmp: Math.random() * 0.8, wrapAngle: 0.8 + Math.random() * 1.2 })
+    _showParamPanel('paintings')
+  } else if (currentModule === 'filters' && filterModule) {
+    _randomizeCustomFilter()
+  }
+  const themes = ['dream', 'space', 'forest', 'magic']
+  const theme = themes[Math.floor(Math.random() * themes.length)]
+  const themeSelect = document.getElementById('sound-theme')
+  if (themeSelect) themeSelect.value = theme
+  audioManager?.setTheme(theme)
+  statusDisplay.showToast('灵感变奏完成：试试看这个版本', 'info', 1600)
+}
+
 function takeScreenshot() {
   const canvas = currentModule === 'filters' ? cameraCanvas : threeCanvas
   const tmp = document.createElement('canvas')
@@ -799,7 +939,7 @@ function takeScreenshot() {
   const ctx = tmp.getContext('2d')
   ctx.drawImage(canvas, 0, 0)
   const link = document.createElement('a')
-  link.download = `gesture-island-${Date.now()}.png`
+  link.download = `${document.getElementById('project-title')?.value.trim() || '我的手势作品'}.png`
   link.href = tmp.toDataURL('image/png')
   link.click()
   audioManager?.screenshotSound()
@@ -866,6 +1006,7 @@ function _bindEvents() {
   })
 
   btnCamera.addEventListener('click', async () => {
+    audioManager?.activate()
     if (cameraActive) await _stopCamera()
     else await _startCamera()
   })
@@ -873,7 +1014,16 @@ function _bindEvents() {
   btnDemo.addEventListener('click', () => toggleDemo())
   btnReset.addEventListener('click', () => reset())
   document.getElementById('btn-screenshot')?.addEventListener('click', () => takeScreenshot())
+  document.getElementById('project-toggle')?.addEventListener('click', () => _toggleProjectPanel())
+  document.getElementById('project-save')?.addEventListener('click', () => _saveProject())
+  document.getElementById('project-variation')?.addEventListener('click', () => _createVariation())
+  document.getElementById('btn-inspire')?.addEventListener('click', () => _inspire())
+  document.getElementById('sound-theme')?.addEventListener('change', (e) => {
+    audioManager?.activate()
+    audioManager?.setTheme(e.target.value)
+  })
   document.getElementById('btn-mute')?.addEventListener('click', () => {
+    audioManager?.activate()
     const muted = audioManager?.toggle()
     document.getElementById('btn-mute').textContent = muted ? '静音' : '声音'
   })
@@ -937,7 +1087,7 @@ function _bindEvents() {
       }
       case 'r': case 'R': if (!e.ctrlKey && !e.metaKey && currentModule === 'filters') _randomizeCustomFilter(); break
       case 'u': case 'U': if (!e.ctrlKey && !e.metaKey && currentModule === 'paintings') document.getElementById('upload-painting-btn')?.click(); break
-      case 'm': case 'M': if (!e.ctrlKey && !e.metaKey) { const muted = audioManager?.toggle(); statusDisplay.showToast(muted ? '已静音' : '已开启声音', 'info', 1000) } break
+      case 'm': case 'M': if (!e.ctrlKey && !e.metaKey) { audioManager?.activate(); const muted = audioManager?.toggle(); document.getElementById('btn-mute').textContent = muted ? '静音' : '声音'; statusDisplay.showToast(muted ? '已静音' : '已开启声音', 'info', 1000) } break
       case '?': {
         if (onboarding) { onboarding._step = 0; onboarding._done = false; onboarding.show() }
         break
