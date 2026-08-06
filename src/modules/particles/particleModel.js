@@ -44,6 +44,9 @@ const FRAG = /* glsl */ `
 uniform vec3 uColor;
 uniform float uOpacity;
 uniform float uPointShape;
+uniform float uGlow;
+uniform float uColorSpread;
+uniform float uTrail;
 varying float vAlpha;
 varying float vRandom;
 void main() {
