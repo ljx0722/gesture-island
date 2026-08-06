@@ -11,28 +11,20 @@ uniform float uScatterDist;
 uniform float uNoiseAmp;
 uniform float uPointScale;
 uniform float uHandVelocity;
-uniform float uHandInfluence;
-uniform float uFlowSpeed;
-uniform float uNoiseScale;
-uniform float uBurstStrength;
-uniform float uRepelRadius;
-uniform float uGlow;
-uniform float uColorSpread;
-uniform float uTrail;
 uniform vec2 uRepel;
 uniform float uRepelStr;
 varying float vAlpha;
 varying float vRandom;
 void main() {
   vec3 noise = vec3(
-    sin(basePosition.y*uNoiseScale+uTime*uFlowSpeed)*cos(basePosition.z*uNoiseScale+uTime*uFlowSpeed*0.7),
-    cos(basePosition.x*uNoiseScale+uTime*uFlowSpeed*0.8)*sin(basePosition.z*uNoiseScale+uTime*uFlowSpeed*0.6),
-    sin(basePosition.x*uNoiseScale+uTime*uFlowSpeed*0.5)*cos(basePosition.y*uNoiseScale+uTime*uFlowSpeed*0.9)
+    sin(basePosition.y*12.0+uTime)*cos(basePosition.z*12.0+uTime*0.7),
+    cos(basePosition.x*12.0+uTime*0.8)*sin(basePosition.z*12.0+uTime*0.6),
+    sin(basePosition.x*12.0+uTime*0.5)*cos(basePosition.y*12.0+uTime*0.9)
   )*uNoiseAmp*0.025;
   float ep = uProgress*(0.85+randomSeed*0.3);
-  float velTurb = uHandVelocity*uHandInfluence * sin(basePosition.x*8.0+uTime*3.0) * cos(basePosition.y*8.0-uTime*2.0) * 0.15;
-  float repel = uRepelStr * (1.0 - smoothstep(0.0, uRepelRadius, length(basePosition.xy - uRepel)));
-  vec3 displaced = basePosition+scatterDir*(ep+velTurb+uBurstStrength*uHandVelocity*0.04-repel*0.6)*uScatterDist+noise;
+  float velTurb = uHandVelocity * sin(basePosition.x*8.0+uTime*3.0) * cos(basePosition.y*8.0-uTime*2.0) * 0.15;
+  float repel = uRepelStr * (1.0 - smoothstep(0.0, 0.5, length(basePosition.xy - uRepel)));
+  vec3 displaced = basePosition+scatterDir*(ep+velTurb-repel*0.6)*uScatterDist+noise;
   vec4 mv = modelViewMatrix*vec4(displaced,1.0);
   gl_Position = projectionMatrix*mv;
   gl_PointSize = clamp(uPointScale*(280.0/-mv.z),0.5,12.0);
@@ -44,9 +36,6 @@ const FRAG = /* glsl */ `
 uniform vec3 uColor;
 uniform float uOpacity;
 uniform float uPointShape;
-uniform float uGlow;
-uniform float uColorSpread;
-uniform float uTrail;
 varying float vAlpha;
 varying float vRandom;
 void main() {
@@ -61,15 +50,13 @@ void main() {
     float rr = abs(sx) + abs(sy);
     d = rr * 1.6;
   } else {
-    float angle = atan(c.y, c.x);
+    float a = atan(c.y, c.x);
     float r = length(c) * 2.0;
-    d = r * (0.65 + 0.35 * cos(angle * 5.0));
+    d = r * (0.65 + 0.35 * cos(a * 5.0));
   }
   float a = 1.0 - smoothstep(0.15, 1.0, d);
   a *= a * vAlpha * uOpacity * (0.75 + vRandom * 0.25);
-  vec3 spreadColor = vec3(vRandom, 1.0-vRandom, 0.5+0.5*sin(vRandom*6.283));
-  vec3 col = mix(uColor, spreadColor, uColorSpread) * (1.0 + (1.0 - d) * (0.3+uGlow*0.6));
-  a *= 1.0 + uTrail*vRandom*0.25;
+  vec3 col = uColor * (1.0 + (1.0 - d) * 0.6);
   if (a < 0.01) discard;
   gl_FragColor = vec4(col, a);
 }`
