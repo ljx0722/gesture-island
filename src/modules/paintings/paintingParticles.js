@@ -11,7 +11,15 @@ attribute vec3 aColor;
 uniform float uProgress;
 uniform float uTime;
 uniform float uNoiseAmp;
+uniform float uNoiseSpeed;
+uniform float uNoiseScale;
 uniform float uPointScale;
+uniform float uBrightness;
+uniform float uContrast;
+uniform float uSaturation;
+uniform float uColorTemperature;
+uniform float uOpacity;
+uniform float uBrushRoundness;
 uniform float uDomeMode;
 uniform float uBrushLength;
 varying vec3 vColor;
@@ -22,9 +30,9 @@ void main() {
   vec3 pos = mix(aFlatPos, aDomePos, uProgress);
   float ns = 0.008 + uProgress * 0.03;
   vec3 noise = vec3(
-    sin(aFlatPos.y*12.0+uTime)*cos(aFlatPos.z*12.0+uTime*0.7),
-    cos(aFlatPos.x*12.0+uTime*0.8)*sin(aFlatPos.z*12.0+uTime*0.6),
-    sin(aFlatPos.x*12.0+uTime*0.5)*cos(aFlatPos.y*12.0+uTime*0.9)
+    sin(aFlatPos.y*uNoiseScale+uTime*uNoiseSpeed)*cos(aFlatPos.z*uNoiseScale+uTime*uNoiseSpeed*0.7),
+    cos(aFlatPos.x*uNoiseScale+uTime*uNoiseSpeed*0.8)*sin(aFlatPos.z*uNoiseScale+uTime*uNoiseSpeed*0.6),
+    sin(aFlatPos.x*uNoiseScale+uTime*uNoiseSpeed*0.5)*cos(aFlatPos.y*uNoiseScale+uTime*uNoiseSpeed*0.9)
   ) * uNoiseAmp * ns;
   pos += noise;
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
@@ -51,12 +59,17 @@ void main() {
   vec2 r = vec2(c.x*ca - c.y*sa, c.x*sa + c.y*ca);
   float asp = 0.5 + uBrushLength*1.5;
   float dist = length(r * vec2(asp, 1.0)) * 2.0;
-  float a = 1.0 - smoothstep(0.2, 1.0, dist);
+  float edge = mix(0.2, 0.05, uBrushRoundness);
+  float a = 1.0 - smoothstep(edge, 1.0, dist);
   a *= a * vAlpha * (0.9 + vBrightness*0.2);
-  vec3 col = vColor * (0.9 + vBrightness*0.2);
+  vec3 col = vColor;
+  col = mix(vec3(dot(col, vec3(0.299,0.587,0.114))), col, uSaturation);
+  col = (col - 0.5) * uContrast + 0.5;
+  col *= uBrightness;
+  col += vec3(uColorTemperature*0.08, 0.0, -uColorTemperature*0.08);
   col += vec3(0.08,0.06,0.02)*(1.0-dist)*vBrightness;
   if(a<0.02) discard;
-  gl_FragColor = vec4(col, a);
+  gl_FragColor = vec4(col, a * uOpacity);
 }`
 
 export class PaintingParticles {
@@ -118,7 +131,9 @@ export class PaintingParticles {
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         uProgress: { value: 0 }, uTime: { value: 0 },
-        uNoiseAmp: { value: this.noiseAmp }, uPointScale: { value: this.pointScale },
+        uNoiseAmp: { value: this.noiseAmp }, uNoiseSpeed: { value: 1 }, uNoiseScale: { value: 12 }, uPointScale: { value: this.pointScale },
+        uBrightness: { value: 1 }, uContrast: { value: 1 }, uSaturation: { value: 1 }, uColorTemperature: { value: 0 },
+        uOpacity: { value: 0.95 }, uBrushRoundness: { value: 0.5 },
         uDomeMode: { value: this.domeMode }, uBrushLength: { value: this.brushLength },
       },
       transparent: true, depthWrite: false, blending: T3.AdditiveBlending,
@@ -146,6 +161,10 @@ export class PaintingParticles {
     if (p.pointScale !== undefined) this.material.uniforms.uPointScale.value = p.pointScale
     if (p.noiseAmp !== undefined) this.material.uniforms.uNoiseAmp.value = p.noiseAmp
     if (p.brushLength !== undefined) this.material.uniforms.uBrushLength.value = p.brushLength
+    const uniformMap = { noiseSpeed: 'uNoiseSpeed', noiseScale: 'uNoiseScale', brightness: 'uBrightness', contrast: 'uContrast', saturation: 'uSaturation', colorTemperature: 'uColorTemperature', opacity: 'uOpacity', brushRoundness: 'uBrushRoundness' }
+    for (const [key, uniform] of Object.entries(uniformMap)) {
+      if (p[key] !== undefined) this.material.uniforms[uniform].value = p[key]
+    }
     if (p.domeRadius !== undefined) { this.domeRadius = p.domeRadius; this._rebuildDome() }
     if (p.wrapAngle !== undefined) { this.wrapAngle = p.wrapAngle; this._rebuildDome() }
     if (p.domeMode !== undefined) { this.domeMode = p.domeMode; this.material.uniforms.uDomeMode.value = p.domeMode; this._rebuildDome() }

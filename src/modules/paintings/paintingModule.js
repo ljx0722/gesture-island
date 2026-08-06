@@ -36,7 +36,7 @@ export class PaintingModule {
     this._gestureOpenness = 0; this._demoMode = false; this._demoTime = 0
     this._customPainting = null; this._customObjectUrl = null
 
-    this.params = { sampleDensity: 3, domeRadius: 5.0, wrapAngle: 1.6, domeMode: 0, pointScale: 1.0, noiseAmp: 0.3, brushLength: 1.0, bgColor: '#0a0a1a' }
+    this.params = { sampleDensity: 3, domeRadius: 5.0, wrapAngle: 1.6, domeMode: 0, pointScale: 1.0, noiseAmp: 0.3, brushLength: 1.0, bgColor: '#0a0a1a', noiseSpeed: 1, noiseScale: 12, brightness: 1, contrast: 1, saturation: 1, colorTemperature: 0, opacity: 0.95, brushRoundness: 0.5, yawSensitivity: 0.8, pitchSensitivity: 0.6, pinchZoom: 1, twoHandSpread: 0.3, fistSlowdown: 0.8, autoRotate: false, autoRotateSpeed: 0.05 }
 
     this._onResize = () => {
       const w = this._safeW(container), h = this._safeH(container)
@@ -128,17 +128,17 @@ export class PaintingModule {
     // Hand position controls painting rotation
     const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
     if (hand?.palmCenter && !this._demoMode) {
-      this.group.rotation.y = (hand.palmCenter.x - 0.5) * Math.PI * 0.8
-      this.group.rotation.x = (hand.palmCenter.y - 0.5) * 0.6
+      this.group.rotation.y = (hand.palmCenter.x - 0.5) * Math.PI * (this.params.yawSensitivity ?? 0.8)
+      this.group.rotation.x = (hand.palmCenter.y - 0.5) * (this.params.pitchSensitivity ?? 0.6)
     }
 
     // Pinch → zoom camera in/out
-    const pinchScale = frameData.isPinching ? 1.0 + (1 - frameData.openness) * 3.0 : 1.0
+    const pinchScale = frameData.isPinching ? 1.0 + (1 - frameData.openness) * 3.0 * (this.params.pinchZoom ?? 1) : 1.0
     this.camera.position.z += ((5.5 / pinchScale) - this.camera.position.z) * 0.1
 
     // Two-hand distance → dome radius (non-destructive, gesture biases user param)
     if (frameData.twoHandDistance > 0) {
-      const gestureDome = 1.0 + Math.min(frameData.twoHandDistance * 8, 8)
+      const gestureDome = 1.0 + Math.min(frameData.twoHandDistance * 8, 8) * (this.params.twoHandSpread ?? 0.3)
       this._gestureDome = gestureDome
       const baseDome = this.params.domeRadius ?? 5.0
       this.paintingParticles?.updateParams({ domeRadius: baseDome + (this._gestureDome - 5.0) * 0.3 })
@@ -153,7 +153,7 @@ export class PaintingModule {
     }
 
     // Fist → pause/unpause demo or reset rotation
-    const ws = frameData.isFist ? 0.2 : 1.0
+    const ws = frameData.isFist ? (1 - (this.params.fistSlowdown ?? 0.8) * 0.8) : 1.0
     this._lerpSpeed = 2.5 * ws
   }
   setGestureOpenness(value) {
@@ -173,7 +173,7 @@ export class PaintingModule {
       this._progress += (this._targetProgress - this._progress) * clamp(this._lerpSpeed * dt, 0, 1)
       this.paintingParticles?.setProgress(this._progress)
       this.paintingParticles?.setTime(this._elapsed)
-      if (this._demoMode) this.group.rotation.y += 0.05 * dt
+      if (this._demoMode && this.params.autoRotate) this.group.rotation.y += (this.params.autoRotateSpeed ?? 0.05) * dt
       if (this.controls) this.controls.update()
       this.renderer.render(this.scene, this.camera)
     }
@@ -190,6 +190,15 @@ export class PaintingModule {
   async selectPainting(i) { await this._loadPainting(i); return PAINTING_PRESETS[this._currentIdx] }
   getCurrentPainting() { return this._customPainting || PAINTING_PRESETS[this._currentIdx] }
   getAllPaintings() { return PAINTING_PRESETS }
+
+  async setSampleDensity(value) {
+    const density = Math.max(1, Math.min(8, Number(value) || 3))
+    if (density === this.params.sampleDensity) return
+    this.params.sampleDensity = density
+    const current = this.getCurrentPainting()
+    if (!current || this._customPainting) return
+    await this._loadPaintingSource(current)
+  }
 
   setParams(params) {
     Object.assign(this.params, params)

@@ -24,6 +24,7 @@ export class ParticleModule {
     if (T.OrbitControls) {
       this.controls = new T.OrbitControls(this.camera, this.renderer.domElement)
       this.controls.enableDamping = true
+      this.controls.enablePan = false
       this.controls.dampingFactor = 0.08
       this.controls.minDistance = 1.5
       this.controls.maxDistance = 12
@@ -37,6 +38,7 @@ export class ParticleModule {
     this.animation = null
     this.uploader = new ParticleUploader()
     this.group = new T.Group()
+    this.group.position.set(0, 0, 0)
     this.scene.add(this.group)
 
     this._animId = 0; this._lastTime = 0; this._gestureOpenness = 0; this._running = false
@@ -46,6 +48,10 @@ export class ParticleModule {
       pointScale: 1.6, scatterDist: 1.5, noiseAmp: 0.6,
       lerpSpeed: 3.0, rotationSpeed: 0.25, opacity: 0.9,
       color: '#6c8cff', pointShape: 0,
+      flowSpeed: 1, noiseScale: 12, glow: 0.6, colorSpread: 0, trail: 0,
+      gestureSensitivity: 1, burstStrength: 0.4, handInfluence: 0.5,
+      repelRadius: 0.5, repelStrength: 0.4, cameraZoom: 0.5, twoHandScale: 0.8,
+      autoRotate: true,
     }
 
     this._onResize = () => {
@@ -79,17 +85,26 @@ export class ParticleModule {
     this.particleModel = new ParticleModel(geometry, {
       pointScale: this.params.pointScale, scatterDist: this.params.scatterDist,
       noiseAmp: this.params.noiseAmp, color: this.params.color, opacity: this.params.opacity,
-      pointShape: this.params.pointShape,
+      pointShape: this.params.pointShape, flowSpeed: this.params.flowSpeed, noiseScale: this.params.noiseScale,
+      glow: this.params.glow, colorSpread: this.params.colorSpread, trail: this.params.trail,
+      burstStrength: this.params.burstStrength, repelRadius: this.params.repelRadius, handInfluence: this.params.handInfluence,
     })
+    this.group.position.set(0, 0, 0)
+    this.group.rotation.set(0, 0, 0)
+    this.controls?.target.set(0, 0, 0)
+    this.camera.position.set(0, 0, 4.2)
+    this.camera.lookAt(0, 0, 0)
+    this.controls?.update()
     this.group.add(this.particleModel.points)
 
     this.animation = new ParticleAnimation(this.particleModel, {
-      lerpSpeed: this.params.lerpSpeed, rotationSpeed: this.params.rotationSpeed,
+      lerpSpeed: this.params.lerpSpeed, rotationSpeed: this.params.rotationSpeed, autoRotate: this.params.autoRotate,
     })
   }
 
   onGestureFrame(frameData) {
-    this._gestureOpenness = frameData.openness ?? 0
+    const sensitivity = this.params.gestureSensitivity ?? 1
+    this._gestureOpenness = Math.max(0, Math.min(1, (frameData.openness ?? 0.5) * sensitivity))
 
     // Hand velocity for particle turbulence
     const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
@@ -107,7 +122,7 @@ export class ParticleModule {
 
     // Pinch → zoom scale (closer to camera)
     if (frameData.isPinching && this._handPos) {
-      const pinchScale = 1.0 - (1 - frameData.openness) * 0.5
+      const pinchScale = 1.0 - (1 - frameData.openness) * (this.params.cameraZoom ?? 0.5)
       this.camera.position.z = 4.2 * pinchScale
       this.camera.lookAt(0, 0, 0)
     } else if (this._handPos) {
@@ -117,12 +132,12 @@ export class ParticleModule {
     // Two-hand distance → global particle scale
     if (frameData.twoHandDistance > 0) {
       const scale = 0.5 + Math.min(frameData.twoHandDistance * 2.5, 2.0)
-      this.particleModel?.updateParams({ pointScale: this.params.pointScale * scale * 0.8 })
+      this.particleModel?.updateParams({ pointScale: this.params.pointScale * scale * (this.params.twoHandScale ?? 0.8) })
     }
 
     // Point gesture → repel direction to shader
     if (frameData.isPointing && hand?.palmCenter) {
-      this.animation?.setPointRepel(hand.palmCenter.x, hand.palmCenter.y, 0.4)
+      this.animation?.setPointRepel(hand.palmCenter.x, hand.palmCenter.y, this.params.repelStrength ?? 0.4)
     } else {
       this.animation?.setPointRepel(0, 0, 0)
     }
@@ -173,6 +188,7 @@ export class ParticleModule {
     this.particleModel?.updateParams(this.params)
     if (this.animation && params.lerpSpeed !== undefined) this.animation.lerpSpeed = params.lerpSpeed
     if (this.animation && params.rotationSpeed !== undefined) this.animation.rotationSpeed = params.rotationSpeed
+    if (this.animation && params.autoRotate !== undefined) this.animation.autoRotate = params.autoRotate
   }
 
   setDemoMode(enabled) { this.animation?.setDemoMode(enabled) }

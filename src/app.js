@@ -15,6 +15,7 @@ import { Onboarding } from './ui/onboarding.js'
 import { ChallengeMode } from './ui/challengeMode.js'
 import { GestureAnimator } from './ui/gestureAnimator.js'
 import { ProjectStore } from './ui/projectStore.js'
+import { flattenSceneSchema } from './core/sceneParamSchema.js'
 
 // DOM refs
 const container = document.getElementById('canvas-container')
@@ -732,25 +733,20 @@ function _renderPaintingSelector() {
 function _showParamPanel(moduleId) {
   if (moduleId === 'particles') {
     const params = particleModule?.params || {}
-    paramPanel.setModule('particles', {
-      pointScale: { label: '粒子大小', min: 0.3, max: 5, step: 0.1, default: 1.6 },
-      scatterDist: { label: '散射距离', min: 0.1, max: 3, step: 0.05, default: 1.5 },
-      noiseAmp: { label: '噪声幅度', min: 0, max: 1, step: 0.01, default: 0.6 },
-      lerpSpeed: { label: '过渡速度', min: 0.5, max: 10, step: 0.1, default: 3.0 },
-      rotationSpeed: { label: '旋转速度', min: 0, max: 2, step: 0.01, default: 0.25 },
-      opacity: { label: '不透明度', min: 0.1, max: 1, step: 0.01, default: 0.9 },
-      color: { type: 'color', label: '粒子颜色', default: '#6c8cff' },
-      pointShape: { type: 'select', label: '粒子形状', default: 0, options: [
-        { value: 0, label: '圆形' }, { value: 1, label: '方形' }, { value: 2, label: '菱形' }, { value: 3, label: '星形' },
-      ] },
-    }, params, (key, val) => {
+    paramPanel.setModule('particles', flattenSceneSchema('particles'), params, (key, val) => {
       params[key] = val
-      particleModule?.setParams(params)
+      particleModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'filters') {
     const filter = filterModule?.getCurrentFilter()
     if (!filter) return
-    paramPanel.setModule('filters', filter.params, filterModule?.filterParams || {}, (key, val) => {
+    const commonFilterParams = {
+      gestureSensitivity: { label: '手势灵敏度', min: 0.5, max: 1.5, step: 0.05, default: 1 },
+      backgroundMix: { label: '背景融合', min: 0, max: 1, step: 0.05, default: 0 },
+      edgeStrength: { label: '边缘效果', min: 0, max: 1, step: 0.05, default: 0.2 },
+      animationSpeed: { label: '动画速度', min: 0, max: 3, step: 0.05, default: 1 },
+    }
+    paramPanel.setModule('filters', { ...commonFilterParams, ...filter.params }, filterModule?.filterParams || {}, (key, val) => {
       if (val === 'randomizeCustomFilter') {
         _randomizeCustomFilter()
         return
@@ -759,19 +755,10 @@ function _showParamPanel(moduleId) {
     })
   } else if (moduleId === 'paintings') {
     const params = paintingModule?.params || {}
-    paramPanel.setModule('paintings', {
-      pointScale: { label: '粒子大小', min: 0.3, max: 5, step: 0.1, default: 1.0 },
-      noiseAmp: { label: '浮动幅度', min: 0, max: 1, step: 0.01, default: 0.3 },
-      brushLength: { label: '笔触长度', min: 0.3, max: 3, step: 0.05, default: 1.0 },
-      domeRadius: { label: '穹顶半径', min: 1, max: 10, step: 0.1, default: 5.0 },
-      wrapAngle: { label: '包裹角度', min: 0.5, max: 2, step: 0.05, default: 1.6 },
-      domeMode: { type: 'select', label: '穹顶样式', default: 0, options: [
-        { value: 0, label: '半球' }, { value: 1, label: '圆柱' }, { value: 2, label: '球面' },
-      ] },
-      bgColor: { type: 'color', label: '背景颜色', default: '#0a0a1a' },
-    }, params, (key, val) => {
+    paramPanel.setModule('paintings', flattenSceneSchema('paintings'), params, async (key, val) => {
       params[key] = val
-      paintingModule?.setParams(params)
+      if (key === 'sampleDensity') await paintingModule?.setSampleDensity(val)
+      else paintingModule?.setParams({ [key]: val })
     })
   }
   paramPanel.show()
@@ -806,7 +793,7 @@ function _captureProjectState() {
   if (currentModule === 'particles' && particleModule) {
     state.scene = { module: 'particles', theme: ['星空', '自然', '几何', '幻想'][particleModule.currentPresetIdx % 4], presetIndex: particleModule.currentPresetIdx, params: { ...particleModule.params } }
   } else if (currentModule === 'filters' && filterModule) {
-    state.scene = { module: 'filters', filterId: filterModule.currentFilterId, params: { ...filterModule.filterParams } }
+    state.scene = { module: 'filters', filterId: filterModule.currentFilterId, params: { ...filterModule.filterParams }, common: { gestureSensitivity: filterModule.filterParams.gestureSensitivity ?? 1, backgroundMix: filterModule.filterParams.backgroundMix ?? 0, edgeStrength: filterModule.filterParams.edgeStrength ?? 0.2 } }
   } else if (currentModule === 'paintings' && paintingModule) {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
   }
@@ -891,12 +878,26 @@ function _createVariation() {
     vary('scatterDist', 0.45, 0.1, 3)
     vary('noiseAmp', 0.2, 0, 1)
     vary('rotationSpeed', 0.2, 0, 2)
-    scene.theme = ['星空', '自然', '几何', '幻想'][Math.floor(Math.random() * 4)]
+    vary('flowSpeed', 0.3, 0.2, 2)
+    vary('glow', 0.25, 0, 1)
+    vary('colorSpread', 0.2, 0, 1)
+    vary('gestureSensitivity', 0.2, 0.5, 1.5)
+    vary('burstStrength', 0.25, 0, 1)
+    vary('repelStrength', 0.25, 0, 1)
+    vary('cameraZoom', 0.2, 0, 1)
   } else if (scene.module === 'paintings') {
     const colors = ['#0a0a1a', '#172554', '#3b1d5a', '#123d3d', '#422006']
     params.bgColor = colors[Math.floor(Math.random() * colors.length)]
     vary('noiseAmp', 0.2, 0, 1)
     vary('wrapAngle', 0.2, 0.5, 2)
+    vary('brightness', 0.2, 0.5, 1.8)
+    vary('contrast', 0.2, 0.5, 2)
+    vary('saturation', 0.2, 0, 1.5)
+    vary('colorTemperature', 0.25, -1, 1)
+    vary('noiseSpeed', 0.5, 0, 3)
+    vary('brushRoundness', 0.25, 0, 1)
+    vary('yawSensitivity', 0.2, 0.2, 1.5)
+    vary('pinchZoom', 0.2, 0, 1)
   }
   const variation = projectStore.save({ ...current, id: null, title: `${current.title} · 变奏`, scene, audio: { ...current.audio } })
   _restoreProject(variation)
@@ -915,10 +916,26 @@ function _inspire() {
   const colors = ['#6c8cff', '#ff6cb5', '#65e6c5', '#ffd166', '#c084fc', '#ff8a5c']
   const color = colors[Math.floor(Math.random() * colors.length)]
   if (currentModule === 'particles' && particleModule) {
-    particleModule.setParams({ color, scatterDist: 0.8 + Math.random() * 2.2, noiseAmp: Math.random() * 0.9, rotationSpeed: Math.max(0, (Math.random() - 0.2) * 0.8) })
+    particleModule.setParams({
+      color, scatterDist: 0.8 + Math.random() * 2.2, noiseAmp: Math.random() * 0.9,
+      rotationSpeed: Math.max(0, (Math.random() - 0.2) * 0.8),
+      flowSpeed: 0.3 + Math.random() * 1.7, noiseScale: 4 + Math.floor(Math.random() * 20),
+      glow: Math.random(), colorSpread: Math.random() * 0.6,
+      gestureSensitivity: 0.5 + Math.random(), burstStrength: Math.random(),
+      repelStrength: Math.random(), cameraZoom: 0.2 + Math.random() * 0.8,
+      autoRotate: Math.random() > 0.3,
+    })
     _showParamPanel('particles')
   } else if (currentModule === 'paintings' && paintingModule) {
-    paintingModule.setParams({ bgColor: color, noiseAmp: Math.random() * 0.8, wrapAngle: 0.8 + Math.random() * 1.2 })
+    paintingModule.setParams({
+      bgColor: color, noiseAmp: Math.random() * 0.8, wrapAngle: 0.8 + Math.random() * 1.2,
+      brightness: 0.6 + Math.random() * 1.2, contrast: 0.5 + Math.random() * 1.5,
+      saturation: 0.2 + Math.random() * 1.3, colorTemperature: (Math.random() - 0.5) * 2,
+      noiseSpeed: 0.1 + Math.random() * 2.9, noiseScale: 4 + Math.floor(Math.random() * 20),
+      brushRoundness: Math.random(), yawSensitivity: 0.2 + Math.random() * 1.3,
+      pinchZoom: Math.random(), autoRotate: Math.random() > 0.5,
+      autoRotateSpeed: Math.random() * 0.5,
+    })
     _showParamPanel('paintings')
   } else if (currentModule === 'filters' && filterModule) {
     _randomizeCustomFilter()

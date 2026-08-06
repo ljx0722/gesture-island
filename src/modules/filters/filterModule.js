@@ -19,6 +19,9 @@ export class FilterModule {
     this.currentFilterId = 'vintage-halftone'
     this.filterParams = {}
     this.preparedFilterParams = {}
+    this._blendFactor = 0
+    this._gestureIntensity = 0
+    this._gestureSpeed = 0
     this.time = 0
 
     // Offscreen canvases
@@ -127,7 +130,13 @@ export class FilterModule {
     // Gesture-driven blend factor from two-hand distance
     const twoDist = frameData.twoHandDistance || 0
     const blendFactor = twoDist > 0 ? Math.min(1, twoDist * 3) : 0
-    this._blendFactor += (blendFactor - (this._blendFactor || 0)) * 0.1
+    this._blendFactor += (blendFactor - this._blendFactor) * 0.1
+    const openness = frameData.openness ?? 0
+    const gestureGain = this.filterParams.gestureSensitivity ?? 1
+    this._gestureIntensity += (Math.max(0, Math.min(1, openness * gestureGain)) - this._gestureIntensity) * 0.12
+    const gestureSpeed = frameData.speed ?? frameData.velocity ?? 0
+    this._gestureSpeed += (gestureSpeed - this._gestureSpeed) * 0.12
+    const gestureParams = { ...this.preparedFilterParams, gestureIntensity: this._gestureIntensity, gestureSpeed: this._gestureSpeed, twoHandBlend: this._blendFactor }
 
     if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
       this.displayCanvas.width = w
@@ -181,7 +190,7 @@ export class FilterModule {
           if (processedMask) ma = this.maskProcessor.getAlphaAt(wx, wy)
           const r = sourceData.data[idx], g = sourceData.data[idx + 1], b = sourceData.data[idx + 2]
           if (ma > 10) {
-            const result = applyFilter(r, g, b, wx, wy, ma, this.preparedFilterParams, this.time)
+            const result = applyFilter(r, g, b, wx, wy, ma, gestureParams, this.time)
             filteredData.data[idx] = result.r
             filteredData.data[idx + 1] = result.g
             filteredData.data[idx + 2] = result.b
@@ -233,7 +242,7 @@ export class FilterModule {
             maskAlpha = processedMask ? this.maskProcessor.getAlphaAt(wx, wy) : 200
           }
           if (maskAlpha > 10 && applyFilter) {
-            const result = applyFilter(r, g, b, wx, wy, maskAlpha, this.preparedFilterParams, this.time)
+            const result = applyFilter(r, g, b, wx, wy, maskAlpha, gestureParams, this.time)
             filteredData.data[idx] = result.r
             filteredData.data[idx + 1] = result.g
             filteredData.data[idx + 2] = result.b
@@ -395,8 +404,8 @@ export class FilterModule {
           const gg = Math.min(255, gradVal + 15)
           const bb = Math.min(255, gradVal - 10)
 
-          const p = this.preparedFilterParams
-          const result = applyFilter(r, gg, bb, wx, wy, 200, p, this.time)
+          const demoGestureParams = { ...this.preparedFilterParams, gestureIntensity: 0.5, gestureSpeed: 0, twoHandBlend: 0.5 }
+          const result = applyFilter(r, gg, bb, wx, wy, 200, demoGestureParams, this.time)
           data.data[idx] = result.r
           data.data[idx + 1] = result.g
           data.data[idx + 2] = result.b
