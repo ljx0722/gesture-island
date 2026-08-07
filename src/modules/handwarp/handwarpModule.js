@@ -1,15 +1,15 @@
-// handwarpModule.js — module 4: real-time camera displacement driven by hand force fields
+// handwarpModule.js — module 4: pinch to tear open holes in the screen, revealing a particle world inside
 import { drawMirrored } from '../../utils/canvas.js'
 
-function clamp(value, min, max) { return Math.max(min, Math.min(max, value)) }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 function dist(x1, y1, x2, y2) { return Math.hypot(x1 - x2, y1 - y2) }
 
-const EFFECTS = [
-  { id: 'vortex', name: '漩涡扭曲', icon: '🌀' },
-  { id: 'tear', name: '画面撕裂', icon: '⚡' },
-  { id: 'ripple', name: '水波扩散', icon: '🌊' },
-  { id: 'stretch', name: '拉伸变形', icon: '↔' },
-  { id: 'gravity', name: '重力拖拽', icon: '🧲' },
+const WORLDS = [
+  { id: 'starfield', name: '星空深渊', bg: '#050515', colors: ['#ffffff', '#aaccff', '#ffddaa'], count: 80, size: 1.8, speed: 0.3 },
+  { id: 'fire', name: '火焰裂隙', bg: '#1a0500', colors: ['#ff6600', '#ff3300', '#ffcc00', '#ff9900'], count: 60, size: 2.2, speed: 0.6 },
+  { id: 'rainbow', name: '彩虹裂缝', bg: '#0a0a0a', colors: ['#ff6666', '#ffcc66', '#66ff66', '#66ccff', '#cc66ff'], count: 70, size: 1.6, speed: 0.4 },
+  { id: 'ice', name: '冰川裂口', bg: '#001020', colors: ['#aaddff', '#ffffff', '#ccddff', '#88bbff'], count: 90, size: 1.5, speed: 0.25 },
+  { id: 'galaxy', name: '银河旋转', bg: '#100520', colors: ['#ffccff', '#cc99ff', '#ffd700', '#ffffff'], count: 70, size: 1.7, speed: 0.35 },
 ]
 
 export class HandwarpModule {
@@ -18,43 +18,52 @@ export class HandwarpModule {
     this.displayCtx = displayCanvas.getContext('2d', { alpha: false })
     this.video = videoElement
 
-    this.activeEffect = 'vortex'
-    this.params = {
-      vortexStrength: 35, tearStrength: 30, rippleStrength: 25, stretchStrength: 40,
-      gravityStrength: 15, effectRadius: 180, tearThreshold: 0.15, rippleDecay: 0.85,
-      stretchSmooth: 0.12,
-    }
+    this._worldIdx = 0
+    this._particles = []
+    this._initWorld(WORLDS[0])
 
-    // Offscreen canvases
+    // Offscreen
     this._sourceCanvas = document.createElement('canvas')
     this._sourceCtx = this._sourceCanvas.getContext('2d', { willReadFrequently: true })
-    this._outputCanvas = document.createElement('canvas')
+    this._maskCanvas = document.createElement('canvas')
+    this._maskCtx = this._maskCanvas.getContext('2d')
+    this._worldCanvas = document.createElement('canvas')
+    this._worldCtx = this._worldCanvas.getContext('2d')
 
-    // Temporal state
+    this._tearMask = null // ImageData of tear mask, alpha=255 inside tear, 0 outside
+    this._prevPinchPos = {} // keyed by hand id → {x,y}
+
+    this.params = {
+      tearSize: 32, healSpeed: 1.8, edgeRoughness: 0.6, edgeGlow: 0.7,
+      edgeGlowColor: '#88ccff', worldBrightness: 1, particleCount: 80, particleSpeed: 0.3,
+    }
+
     this.time = 0
-    this._prevHands = []
-    this._rippleSources = [] // { x, y, time, strength }
     this._demoTime = 0
     this.demoMode = false
   }
 
   // ── public API ──
 
-  async init() {} // no async setup needed
+  async init() {}
+  getCurrentWorld() { return WORLDS[this._worldIdx] }
+  getAllWorlds() { return WORLDS }
+  nextWorld() { this._worldIdx = (this._worldIdx + 1) % WORLDS.length; this._initWorld(WORLDS[this._worldIdx]); return WORLDS[this._worldIdx] }
+  prevWorld() { this._worldIdx = (this._worldIdx - 1 + WORLDS.length) % WORLDS.length; this._initWorld(WORLDS[this._worldIdx]); return WORLDS[this._worldIdx] }
+  selectWorld(i) { this._worldIdx = i % WORLDS.length; this._initWorld(WORLDS[this._worldIdx]); return WORLDS[this._worldIdx] }
 
-  getCurrentEffect() { return EFFECTS.find(e => e.id === this.activeEffect) || EFFECTS[0] }
-  getAllEffects() { return EFFECTS }
-
-  selectEffect(id) { if (EFFECTS.some(e => e.id === id)) this.activeEffect = id; return this.getCurrentEffect() }
-  nextEffect() {
-    const idx = EFFECTS.findIndex(e => e.id === this.activeEffect)
-    this.activeEffect = EFFECTS[(idx + 1) % EFFECTS.length].id
-    return this.getCurrentEffect()
-  }
-  prevEffect() {
-    const idx = EFFECTS.findIndex(e => e.id === this.activeEffect)
-    this.activeEffect = EFFECTS[(idx - 1 + EFFECTS.length) % EFFECTS.length].id
-    return this.getCurrentEffect()
+  _initWorld(w) {
+    this._particles = []
+    for (let i = 0; i < w.count; i++) {
+      this._particles.push({
+        x: Math.random(), y: Math.random(),
+        vx: (Math.random() - 0.5) * w.speed * 0.015,
+        vy: (Math.random() - 0.5) * w.speed * 0.015 - 0.003,
+        color: w.colors[Math.floor(Math.random() * w.colors.length)],
+        size: w.size * (0.4 + Math.random() * 0.6),
+        phase: Math.random() * Math.PI * 2,
+      })
+    }
   }
 
   setParams(p) { Object.assign(this.params, p) }
@@ -63,25 +72,20 @@ export class HandwarpModule {
 
   render(frameData, dt) {
     this.time += dt
-    const { video, leftHand, rightHand } = frameData
     const w = this.displayCanvas.width || this.displayCanvas.clientWidth || 640
     const h = this.displayCanvas.height || this.displayCanvas.clientHeight || 480
-
-    if (this.displayCanvas.width !== w || this.displayCanvas.height !== h) {
-      this.displayCanvas.width = w; this.displayCanvas.height = h
-    }
-
-    // Downscale for performance
-    const MAX = 640
-    const scale = clamp(Math.min(1, MAX / Math.max(w, h)), 0.25, 1)
-    const pw = Math.max(1, Math.round(w * scale))
-    const ph = Math.max(1, Math.round(h * scale))
-
+    this.displayCanvas.width = w; this.displayCanvas.height = h
     this._sourceCanvas.width = w; this._sourceCanvas.height = h
-    this._outputCanvas.width = pw; this._outputCanvas.height = ph
+    this._maskCanvas.width = w; this._maskCanvas.height = h
+    this._worldCanvas.width = w; this._worldCanvas.height = h
+
+    const dctx = this.displayCtx
+    const world = this.getCurrentWorld()
+    const maskCtx = this._maskCtx
+    const wctx = this._worldCtx
 
     // Draw mirrored camera
-    const ctx = this.displayCtx
+    const video = frameData.video || this.video
     if (video && video.readyState >= 2) {
       drawMirrored(this._sourceCtx, video, w, h)
     } else {
@@ -89,196 +93,225 @@ export class HandwarpModule {
       this._sourceCtx.fillRect(0, 0, w, h)
     }
 
-    const hands = this._collectHands(frameData)
-    if (hands.length < 1 && !this.demoMode) {
-      ctx.drawImage(this._sourceCanvas, 0, 0)
-      return
+    // Collect pinching hands
+    const pinchHands = this._collectPinchHands(frameData)
+
+    // Init mask (black = camera visible, white = tear visible)
+    maskCtx.fillStyle = '#000'
+    maskCtx.fillRect(0, 0, w, h)
+
+    const tearSize = this.params.tearSize
+    const roughness = this.params.edgeRoughness
+
+    // Draw tear circles along current pinch positions and paths
+    for (const h of pinchHands) {
+      const key = h.id
+      const cx = h.x * w, cy = h.y * h
+      const prev = this._prevPinchPos[key]
+
+      // Draw jagged tear blob at current position
+      this._drawTearBlob(maskCtx, cx, cy, tearSize, roughness)
+
+      // Draw connecting blobs along path to previous position
+      if (prev) {
+        const dx = cx - prev.x, dy = cy - prev.y
+        const segDist = Math.hypot(dx, dy)
+        const steps = Math.max(1, Math.floor(segDist / (tearSize * 0.5)))
+        for (let s = 1; s <= steps; s++) {
+          const t = s / steps
+          const px = prev.x + dx * t, py = prev.y + dy * t
+          this._drawTearBlob(maskCtx, px, py, tearSize * (0.8 + 0.2 * t), roughness)
+        }
+      }
+      this._prevPinchPos[key] = { x: cx, y: cy }
     }
 
-    // Track velocity and gesture transitions for ripple triggers
-    this._updateHandHistory(hands, dt)
-    this._checkGestureTransitions(frameData)
+    // Clean up prev positions for hands no longer pinching
+    const activeKeys = new Set(pinchHands.map(h => h.id))
+    for (const k of Object.keys(this._prevPinchPos)) {
+      if (!activeKeys.has(k)) delete this._prevPinchPos[k]
+    }
 
-    const sourceData = this._sourceCtx.getImageData(0, 0, w, h)
-    const outputData = new ImageData(pw, ph)
+    // Heal: if no one is pinching, dissolve the mask
+    // (healing is visual-only since mask resets each frame — we simulate by not creating new mask)
+    // Actually, we want the tear to PERSIST and slowly heal.
+    // So we need a persistent mask that accumulates, not resets each frame.
+    // Let's use the accumulated mask approach:
+    // - _tearCanvas holds the persistent tear mask
+    // - Each frame: heal (darken) the persistent mask a bit, then add new pinch blobs
+    // - Render: composite using persistent mask
+    if (!this._tearCanvas) {
+      this._tearCanvas = document.createElement('canvas')
+      this._tearCtx = this._tearCanvas.getContext('2d')
+      this._tearCanvas.width = w; this._tearCanvas.height = h
+      this._tearCtx.fillStyle = '#000'; this._tearCtx.fillRect(0, 0, w, h)
+    }
+    if (this._tearCanvas.width !== w || this._tearCanvas.height !== h) {
+      this._tearCanvas.width = w; this._tearCanvas.height = h
+      this._tearCtx.fillStyle = '#000'; this._tearCtx.fillRect(0, 0, w, h)
+    }
 
-    const invScale = 1 / scale
-    for (let py = 0; py < ph; py++) {
-      for (let px = 0; px < pw; px++) {
-        const wx = px * invScale, wy = py * invScale
-        let dx = 0, dy = 0
-        const active = this.activeEffect
+    const tearCtx = this._tearCtx
 
-        for (const h of hands) {
-          const sx = h.x * w, sy = h.y * h
-          const d = dist(wx, wy, sx, sy)
-          const R = this.params.effectRadius
+    // Heal step: darken existing mask
+    const healRate = this.params.healSpeed * dt
+    tearCtx.globalCompositeOperation = 'source-over'
+    tearCtx.fillStyle = `rgba(0,0,0,${healRate})`
+    tearCtx.fillRect(0, 0, w, h)
 
-          if (active === 'vortex') {
-            dx += this._vortexForce(wx, wy, sx, sy, d, R, h).dx
-            dy += this._vortexForce(wx, wy, sx, sy, d, R, h).dy
-          }
-          if (active === 'tear') {
-            dx += this._tearForce(wx, wy, sx, sy, d, R, h).dx
-            dy += this._tearForce(wx, wy, sx, sy, d, R, h).dy
-          }
-          if (active === 'gravity') {
-            dx += this._gravityForce(wx, wy, sx, sy, d, R, h).dx
-            dy += this._gravityForce(wx, wy, sx, sy, d, R, h).dy
-          }
+    // Add new pinch blobs to persistent mask (brighten)
+    tearCtx.globalCompositeOperation = 'lighter'
+
+    // Check for burst (fist → open)
+    let burst = false
+    const gesture = frameData.gestureType || 'none'
+    if (gesture !== this._lastGesture && gesture === 'open' && this._lastGesture === 'fist') {
+      burst = true
+    }
+    this._lastGesture = gesture
+
+    for (const h of pinchHands) {
+      const key = h.id
+      const cx = h.x * w, cy = h.y * h
+      const prev = this._prevPinchStates?.[key]
+      const s = burst ? tearSize * 3 : tearSize
+
+      this._drawTearBlob(tearCtx, cx, cy, s, roughness)
+
+      if (prev) {
+        const dx = cx - prev.x, dy = cy - prev.y
+        const d = Math.hypot(dx, dy)
+        const steps = Math.max(1, Math.floor(d / (tearSize * 0.5)))
+        for (let si = 1; si <= steps; si++) {
+          const t = si / steps
+          this._drawTearBlob(tearCtx, prev.x + dx * t, prev.y + dy * t, s * (0.85 + 0.15 * t), roughness)
         }
-
-        // Ripple (hand-independent, time-decaying rings)
-        if (active === 'ripple') {
-          for (const rs of this._rippleSources) {
-            const age = (this.time - rs.time) * 1000 // ms
-            if (age > 2000) continue
-            const rd = dist(wx, wy, rs.x * w, rs.y * h)
-            const decay = Math.exp(-age / 800)
-            const wave = Math.sin(rd * 0.04 - age * 0.01) * rs.strength * decay
-            const angle = wx !== rs.x * w ? Math.atan2(wy - rs.y * h, wx - rs.x * w) : 0
-            dx += Math.cos(angle) * wave * 20
-            dy += Math.sin(angle) * wave * 20
-          }
-        }
-
-        // Stretch (two-hand pinch)
-        if (active === 'stretch' && hands.length >= 2 && hands[0].pinching && hands[1].pinching) {
-          const a = { x: hands[0].x * w, y: hands[0].y * h }
-          const b = { x: hands[1].x * w, y: hands[1].y * h }
-          const midx = (a.x + b.x) / 2, midy = (a.y + b.y) / 2
-          const lx = b.x - a.x, ly = b.y - a.y
-          const len = Math.hypot(lx, ly) || 1
-          const nx = lx / len, ny = ly / len
-          const proj = (wx - midx) * nx + (wy - midy) * ny
-          const perp = Math.abs((wx - midx) * ny - (wy - midy) * nx)
-          const halfLen = len / 2
-          if (Math.abs(proj) < halfLen && perp < R) {
-            const factor = proj / halfLen
-            const blend = 1 - perp / R
-            dx += nx * factor * this.params.stretchStrength * blend
-            dy += ny * factor * this.params.stretchStrength * blend
-          }
-        }
-
-        dx = clamp(dx, -w, w)
-        dy = clamp(dy, -h, h)
-
-        const sx = clamp(Math.round(wx + dx), 0, w - 1)
-        const sy = clamp(Math.round(wy + dy), 0, h - 1)
-        const si = (sy * w + sx) * 4
-        const oi = (py * pw + px) * 4
-        outputData.data[oi] = sourceData.data[si]
-        outputData.data[oi + 1] = sourceData.data[si + 1]
-        outputData.data[oi + 2] = sourceData.data[si + 2]
-        outputData.data[oi + 3] = 255
       }
     }
 
-    const tmp = this._outputCanvas.getContext('2d')
-    tmp.putImageData(outputData, 0, 0)
-    ctx.drawImage(this._outputCanvas, 0, 0, pw, ph, 0, 0, w, h)
-  }
-
-  // ── force functions ──
-
-  _vortexForce(wx, wy, sx, sy, d, R, hand) {
-    if (d > R) return { dx: 0, dy: 0 }
-    const angle = Math.atan2(wy - sy, wx - sx)
-    const strength = (1 - d / R) * this.params.vortexStrength * 0.5
-    return { dx: -Math.sin(angle) * strength, dy: Math.cos(angle) * strength }
-  }
-
-  _tearForce(wx, wy, sx, sy, d, R, hand) {
-    if (d > R || !hand.pinching) return { dx: 0, dy: 0 }
-    const v = Math.abs(hand.vx) + Math.abs(hand.vy)
-    if (v < this.params.tearThreshold) return { dx: 0, dy: 0 }
-    const dx = hand.vx * this.params.tearStrength * (1 - d / R) * 2
-    const dy = hand.vy * this.params.tearStrength * (1 - d / R) * 2
-    // Perpendicular tear discontinuity
-    const perpX = -hand.vy, perpY = hand.vx
-    const perpLen = Math.hypot(perpX, perpY) || 1
-    const proj = ((wx - sx) * perpX + (wy - sy) * perpY) / perpLen
-    const side = Math.sign(proj)
-    return { dx: dx + side * Math.abs(dx) * 0.4, dy: dy + side * Math.abs(dy) * 0.4 }
-  }
-
-  _gravityForce(wx, wy, sx, sy, d, R, hand) {
-    if (d > R * 1.5) return { dx: 0, dy: 0 }
-    const angle = Math.atan2(wy - sy, wx - sx)
-    const strength = this.params.gravityStrength * (1 - d / (R * 1.5))
-    return { dx: Math.cos(angle) * strength * -0.3, dy: Math.sin(angle) * strength * -0.3 }
-  }
-
-  // ── hand state ──
-
-  _collectHands(frameData) {
-    const hands = []
-    if (this.demoMode) {
-      const demo = this._generateDemoHands(
-        this.displayCanvas.width || 640, this.displayCanvas.height || 480
-      )
-      return [demo.left, demo.right].filter(Boolean)
+    // Store current pinch states for next frame's path
+    if (!this._prevPinchStates) this._prevPinchStates = {}
+    const activePinchKeys = new Set(pinchHands.map(h => h.id))
+    for (const k of Object.keys(this._prevPinchStates)) {
+      if (!activePinchKeys.has(k)) delete this._prevPinchStates[k]
     }
+    for (const h of pinchHands) {
+      this._prevPinchStates[h.id] = { x: h.x * w, y: h.y * h }
+    }
+
+    tearCtx.globalCompositeOperation = 'source-over'
+
+    // Get persistent tear mask as ImageData
+    this._tearMask = tearCtx.getImageData(0, 0, w, h)
+
+    // Draw world (particle background) onto world canvas
+    wctx.fillStyle = world.bg
+    wctx.fillRect(0, 0, w, h)
+    for (const pt of this._particles) {
+      pt.x += pt.vx * dt * 60; pt.y += pt.vy * dt * 60
+      if (pt.x < 0) pt.x = 1; if (pt.x > 1) pt.x = 0
+      if (pt.y < 0) pt.y = 1; if (pt.y > 1) pt.y = 0
+      pt.phase += dt * 2
+      const alpha = 0.35 + 0.35 * Math.sin(pt.phase)
+      wctx.beginPath()
+      wctx.arc(pt.x * w, pt.y * h, pt.size, 0, Math.PI * 2)
+      wctx.fillStyle = this._hexToRgba(pt.color, alpha)
+      wctx.fill()
+    }
+
+    // Composite: camera → tear mask → world
+    const sourceData = this._sourceCtx.getImageData(0, 0, w, h)
+    const worldData = wctx.getImageData(0, 0, w, h)
+    const output = dctx.createImageData(w, h)
+    const maskData = this._tearMask.data
+    const edgeGlow = this.params.edgeGlow
+    const glowColor = this._parseColor(this.params.edgeGlowColor)
+
+    // Precompute edge detection for glow: dilate mask - erode mask
+    const edgeMask = new Uint8Array(w * h)
+    const kern = 3
+    for (let y = kern; y < h - kern; y++) {
+      for (let x = kern; x < w - kern; x++) {
+        const idx = (y * w + x) * 4
+        const center = maskData[idx] / 255
+        if (center < 0.1) continue
+        let minN = 1
+        for (let dy = -kern; dy <= kern; dy++) {
+          for (let dx = -kern; dx <= kern; dx++) {
+            const ni = ((y + dy) * w + (x + dx)) * 4
+            minN = Math.min(minN, maskData[ni] / 255)
+          }
+        }
+        if (minN < 0.3) edgeMask[y * w + x] = 1
+      }
+    }
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const maskVal = maskData[i] / 255
+        const si = i
+
+        // Inside tear → show world, outside → show camera
+        const cr = sourceData.data[si], cg = sourceData.data[si + 1], cb = sourceData.data[si + 2]
+        const wr = worldData.data[i], wg = worldData.data[i + 1], wb = worldData.data[i + 2]
+
+        let r = cr * (1 - maskVal) + wr * maskVal
+        let g = cg * (1 - maskVal) + wg * maskVal
+        let b = cb * (1 - maskVal) + wb * maskVal
+
+        // Edge glow
+        if (edgeGlow > 0 && edgeMask[y * w + x]) {
+          r = clamp(r + glowColor.r * edgeGlow * 180, 0, 255)
+          g = clamp(g + glowColor.g * edgeGlow * 180, 0, 255)
+          b = clamp(b + glowColor.b * edgeGlow * 180, 0, 255)
+        }
+
+        output.data[i] = r
+        output.data[i + 1] = g
+        output.data[i + 2] = b
+        output.data[i + 3] = 255
+      }
+    }
+
+    dctx.putImageData(output, 0, 0)
+  }
+
+  _drawTearBlob(ctx, cx, cy, radius, roughness) {
+    ctx.beginPath()
+    const steps = 14
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2
+      const jitter = roughness > 0 ? (Math.random() - 0.5) * radius * 0.7 * roughness + (Math.sin(i * 5) * radius * 0.25 * roughness) : 0
+      const r = radius + jitter
+      const px = cx + Math.cos(angle) * r
+      const py = cy + Math.sin(angle) * r
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#fff'
+    ctx.fill()
+  }
+
+  _collectPinchHands(frameData) {
+    if (this.demoMode) return this._demoPinchHands()
+    const hands = []
     for (const id of ['left', 'right']) {
       const h = frameData[id + 'Hand'] || frameData.hands?.[id]
-      if (!h?.palmCenter) continue
-      hands.push({
-        x: h.palmCenter.x,
-        y: h.palmCenter.y,
-        pinching: frameData.isPinching || false,
-        vx: 0, vy: 0,
-      })
+      if (!h?.palmCenter || !frameData.isPinching) continue
+      hands.push({ id, x: 1 - h.palmCenter.x, y: h.palmCenter.y })
     }
     return hands
   }
 
-  _updateHandHistory(hands, dt) {
-    for (let i = 0; i < hands.length; i++) {
-      const prev = this._prevHands.find(p => p._id === i)
-      if (prev) {
-        hands[i].vx = (hands[i].x - prev.x) / Math.max(dt, 0.001) * 0.02
-        hands[i].vy = (hands[i].y - prev.y) / Math.max(dt, 0.001) * 0.02
-      }
-      hands[i]._id = i
-    }
-    this._prevHands = hands.map(h => ({ _id: h._id, x: h.x, y: h.y }))
-  }
-
-  _checkGestureTransitions(frameData) {
-    const gesture = frameData.gestureType || 'none'
-    if (gesture !== this._lastGesture && gesture !== 'none') {
-      const hand = frameData.primaryHand || frameData.leftHand || frameData.rightHand
-      if (hand?.palmCenter) {
-        this._rippleSources.push({
-          x: hand.palmCenter.x, y: hand.palmCenter.y,
-          time: this.time, strength: this.params.rippleStrength / 25,
-        })
-        if (this._rippleSources.length > 6) this._rippleSources.shift()
-      }
-    }
-    this._lastGesture = gesture
-  }
-
-  // ── demo mode ──
-
-  _generateDemoHands(w, h) {
+  _demoPinchHands() {
     this._demoTime += 0.016
     const t = this._demoTime
-    return {
-      left: {
-        x: 0.22 + Math.sin(t * 0.7) * 0.06,
-        y: 0.52 + Math.cos(t * 0.5) * 0.08,
-        pinching: Math.sin(t * 1.3) > 0.3,
-        vx: Math.cos(t * 0.7) * 0.04, vy: -Math.sin(t * 0.5) * 0.06,
-      },
-      right: {
-        x: 0.75 + Math.sin(t * 0.7 + 1) * 0.06,
-        y: 0.48 + Math.cos(t * 0.5 + 1) * 0.08,
-        pinching: Math.sin(t * 0.8 + 2) > 0.5,
-        vx: Math.cos(t * 0.7 + 1) * 0.04, vy: -Math.sin(t * 0.5 + 1) * 0.06,
-      },
-    }
+    return [
+      { id: 'demoL', x: 0.3 + Math.sin(t * 0.6) * 0.12 + Math.sin(t * 1.7) * 0.04, y: 0.45 + Math.cos(t * 0.5) * 0.1 + Math.cos(t * 1.3) * 0.03 },
+      { id: 'demoR', x: 0.65 + Math.sin(t * 0.65 + 1) * 0.1 + Math.sin(t * 1.5) * 0.04, y: 0.5 + Math.cos(t * 0.55 + 1) * 0.1 + Math.cos(t * 1.4) * 0.03 },
+    ]
   }
 
   renderDemo(dt) {
@@ -287,14 +320,16 @@ export class HandwarpModule {
     this.demoMode = false
   }
 
-  // ── lifecycle ──
-
-  reset() {
-    this._prevHands = []
-    this._rippleSources = []
-    this._lastGesture = null
-    this._demoTime = 0
+  _hexToRgba(hex, alpha) {
+    const c = hex.replace('#', '')
+    return `rgba(${parseInt(c.slice(0, 2), 16)},${parseInt(c.slice(2, 4), 16)},${parseInt(c.slice(4, 6), 16)},${alpha})`
   }
 
+  _parseColor(hex) {
+    const c = hex.replace('#', '')
+    return { r: parseInt(c.slice(0, 2), 16) / 255, g: parseInt(c.slice(2, 4), 16) / 255, b: parseInt(c.slice(4, 6), 16) / 255 }
+  }
+
+  reset() { this._tearCanvas = null; this._prevPinchPos = {}; this._prevPinchStates = {}; this._demoTime = 0; this._initWorld(WORLDS[this._worldIdx]) }
   dispose() {}
 }

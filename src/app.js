@@ -816,34 +816,26 @@ function _renderWarpSelector() {
   const warpSelector = document.getElementById('warp-selector')
   if (!warpSelector) return
   warpSelector.classList.remove('hidden')
-  const allEffects = handwarpModule?.getAllEffects() || []
-  const current = handwarpModule?.getCurrentEffect()
-  const idx = allEffects.findIndex(e => e.id === current?.id)
+  const worlds = handwarpModule?.getAllWorlds() || []
+  const current = handwarpModule?.getCurrentWorld()
+  const idx = worlds.findIndex(w => w.id === current?.id)
   let html = '<button class="selector-arrow" id="warp-prev">◀</button>'
-  html += `<span class="selector-name">${current?.icon || ''} ${current?.name || ''}</span>`
+  html += `<span class="selector-name">${current?.name || ''}</span>`
   html += '<button class="selector-arrow" id="warp-next">▶</button>'
   html += '<div class="selector-dots">'
-  allEffects.forEach((e, i) => {
-    html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-warp="${i}" title="${e.name}"></span>`
-  })
+  worlds.forEach((w, i) => { html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-warp="${i}" title="${w.name}"></span>` })
   html += '</div>'
   warpSelector.innerHTML = html
 
   document.getElementById('warp-prev')?.addEventListener('click', () => {
-    handwarpModule?.prevEffect()
-    _renderWarpSelector()
-    audioManager?.presetSwitch()
+    handwarpModule?.prevWorld(); _renderWarpSelector(); audioManager?.presetSwitch()
   })
   document.getElementById('warp-next')?.addEventListener('click', () => {
-    handwarpModule?.nextEffect()
-    _renderWarpSelector()
-    audioManager?.presetSwitch()
+    handwarpModule?.nextWorld(); _renderWarpSelector(); audioManager?.presetSwitch()
   })
   warpSelector.querySelectorAll('.selector-dot').forEach(dot => {
     dot.addEventListener('click', () => {
-      const all = handwarpModule?.getAllEffects() || []
-      const e = all[parseInt(dot.dataset.warp)]
-      if (e) { handwarpModule?.selectEffect(e.id); _renderWarpSelector() }
+      handwarpModule?.selectWorld(parseInt(dot.dataset.warp)); _renderWarpSelector()
       audioManager?.presetSwitch()
     })
   })
@@ -918,13 +910,12 @@ function _showParamPanel(moduleId) {
     })
   } else if (moduleId === 'handwarp') {
     paramPanel.setModule('handwarp', {
-      vortexStrength: { label: '漩涡强度', min: 5, max: 60, step: 1, default: 35 },
-      tearStrength: { label: '撕裂强度', min: 5, max: 60, step: 1, default: 30 },
-      rippleStrength: { label: '波纹强度', min: 5, max: 50, step: 1, default: 25 },
-      stretchStrength: { label: '拉伸强度', min: 5, max: 60, step: 1, default: 40 },
-      gravityStrength: { label: '重力拖拽', min: 2, max: 40, step: 1, default: 15 },
-      effectRadius: { label: '效果范围', min: 60, max: 400, step: 5, default: 180 },
-      tearThreshold: { label: '撕裂触发速度', min: 0.05, max: 0.5, step: 0.01, default: 0.15 },
+      tearSize: { label: '撕口大小', min: 12, max: 60, step: 1, default: 32 },
+      healSpeed: { label: '自愈速度', min: 0.3, max: 5, step: 0.1, default: 1.8 },
+      edgeRoughness: { label: '毛刺程度', min: 0, max: 1, step: 0.05, default: 0.6 },
+      edgeGlow: { label: '裂口辉光', min: 0, max: 1, step: 0.05, default: 0.7 },
+      particleSpeed: { label: '粒子速度', min: 0.05, max: 1, step: 0.05, default: 0.3 },
+      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
     }, handwarpModule?.params || {}, (key, val) => {
       if (handwarpModule?.params) handwarpModule.params[key] = val
       handwarpModule?.setParams({ [key]: val })
@@ -941,11 +932,11 @@ function _showParamPanel(moduleId) {
     })
   } else if (moduleId === 'shadowplay') {
     paramPanel.setModule('shadowplay', {
-      maskSoftness: { label: '轮廓柔化', min: 2, max: 20, step: 1, default: 8 },
-      edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.5 },
-      particleSize: { label: '粒子大小', min: 0.5, max: 4, step: 0.1, default: 1.5 },
-      particleSpeed: { label: '粒子速度', min: 0.1, max: 1, step: 0.05, default: 0.3 },
-      worldAlpha: { label: '世界透明度', min: 0.3, max: 1, step: 0.05, default: 0.9 },
+      maskSoftness: { label: '轮廓柔化', min: 2, max: 16, step: 1, default: 6 },
+      edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.4 },
+      repelStrength: { label: '粒子推斥', min: 0, max: 1, step: 0.05, default: 0.3 },
+      vortexStrength: { label: '挥手涡旋', min: 0, max: 1, step: 0.05, default: 0.2 },
+      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
     }, shadowplayModule?.params || {}, (key, val) => {
       if (shadowplayModule?.params) shadowplayModule.params[key] = val
       shadowplayModule?.setParams({ [key]: val })
@@ -987,7 +978,7 @@ function _captureProjectState() {
   } else if (currentModule === 'paintings' && paintingModule) {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
   } else if (currentModule === 'handwarp' && handwarpModule) {
-    state.scene = { module: 'handwarp', effectId: handwarpModule.activeEffect, params: { ...handwarpModule.params } }
+    state.scene = { module: 'handwarp', worldIdx: handwarpModule._worldIdx, params: { ...handwarpModule.params } }
   } else if (currentModule === 'lighttrails' && lighttrailsModule) {
     state.scene = { module: 'lighttrails', presetIdx: lighttrailsModule._presetIdx, params: { ...lighttrailsModule.params } }
   } else if (currentModule === 'shadowplay' && shadowplayModule) {
@@ -1289,7 +1280,7 @@ function _bindEvents() {
         if (currentModule === 'particles') { particleModule?.prevPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
-        else if (currentModule === 'handwarp') { handwarpModule?.prevEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'handwarp') { handwarpModule?.prevWorld(); _renderWarpSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'lighttrails') { lighttrailsModule?.prevPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'shadowplay') { shadowplayModule?.prevWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break
@@ -1297,7 +1288,7 @@ function _bindEvents() {
         if (currentModule === 'particles') { particleModule?.nextPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
-        else if (currentModule === 'handwarp') { handwarpModule?.nextEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'handwarp') { handwarpModule?.nextWorld(); _renderWarpSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'lighttrails') { lighttrailsModule?.nextPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'shadowplay') { shadowplayModule?.nextWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break
