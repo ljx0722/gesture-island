@@ -79,6 +79,8 @@
         <div id="filter-selector" class="module-ui selector-panel hidden"></div>
         <div id="painting-selector" class="module-ui selector-panel hidden"></div>
         <div id="warp-selector" class="module-ui selector-panel hidden"></div>
+        <div id="trail-selector" class="module-ui selector-panel hidden"></div>
+        <div id="shadow-selector" class="module-ui selector-panel hidden"></div>
       </div>
       <div id="bar-center">
         <span id="gesture-status" class="status-dot offline"></span>
@@ -153,30 +155,6 @@
       }
     }
 
-    // Load addons
-    document.getElementById('loading-text').textContent = '正在加载插件...';
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/controls/OrbitControls.js');
-    } catch(e) {
-      console.warn('OrbitControls primary CDN failed, trying fallback:', e.message);
-      try {
-        await loadScript('https://unpkg.com/three@0.157.0/examples/js/controls/OrbitControls.js');
-      } catch(e2) {
-        console.warn('OrbitControls load failed (non-critical):', e2.message);
-      }
-    }
-
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/loaders/GLTFLoader.js');
-    } catch(e) {
-      console.warn('GLTFLoader primary CDN failed, trying fallback:', e.message);
-      try {
-        await loadScript('https://unpkg.com/three@0.157.0/examples/js/loaders/GLTFLoader.js');
-      } catch(e2) {
-        console.warn('GLTFLoader load failed (model upload disabled):', e2.message);
-      }
-    }
-
     // Verify THREE is loaded
     if (!window.THREE || !window.THREE.Scene) {
       fatal('Three.js 加载不完整，请刷新页面重试。');
@@ -185,8 +163,19 @@
 
     console.log('THREE r' + (window.THREE.REVISION || '?') + ' loaded');
 
-    // Step 2: Load app.js
+    // Step 2: Load app.js immediately — addons load in background
     document.getElementById('loading-text').textContent = '正在初始化应用...';
+
+    // Non-blocking addon loading
+    var addonCDN = 'https://cdn.jsdelivr.net/npm/three@0.157.0';
+    var addonFallback = 'https://unpkg.com/three@0.157.0';
+    loadScript(addonCDN + '/examples/js/controls/OrbitControls.js').catch(function() {
+      return loadScript(addonFallback + '/examples/js/controls/OrbitControls.js').catch(function() {})
+    });
+    loadScript(addonCDN + '/examples/js/loaders/GLTFLoader.js').catch(function() {
+      return loadScript(addonFallback + '/examples/js/loaders/GLTFLoader.js').catch(function() {})
+    });
+
     try {
       var appScript = document.createElement('script');
       appScript.type = 'module';

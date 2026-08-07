@@ -51,7 +51,11 @@ export async function createHandTracker(options = {}) {
   onProgress?.({ stage: 'hand', progress: 0.8, text: '正在加载手势模型权重...' })
   let landmarker
   try { landmarker = await create('GPU') }
-  catch { console.warn('GPU delegate failed, falling back to CPU'); landmarker = await create('CPU') }
+  catch {
+    console.warn('GPU delegate failed, falling back to CPU')
+    onProgress?.({ stage: 'hand', progress: 0.7, text: 'GPU初始化失败，切换CPU模式...' })
+    landmarker = await create('CPU')
+  }
 
   onProgress?.({ stage: 'hand', progress: 1.0, text: '手势识别模型加载完成' })
 

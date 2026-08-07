@@ -3,7 +3,8 @@ import { getMediaPipeModules } from './mediapipeBootstrap.js'
 
 export async function createMaskSegmenter(options = {}) {
   const {
-    modelPath = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+    modelPath = '/mediapipe/selfie_segmenter.tflite',
+    fallbackModelPath = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
     onProgress = null,
   } = options
 
@@ -15,21 +16,29 @@ export async function createMaskSegmenter(options = {}) {
 
   onProgress?.({ stage: 'mask', progress: 0.8, text: '正在加载分割模型权重...' })
   let segmenter
-  try {
-    segmenter = await ImageSegmenter.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: modelPath, delegate: 'GPU' },
+  const tryCreate = async (path, delegate) => {
+    return await ImageSegmenter.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: path, delegate },
       runningMode: 'VIDEO',
       outputCategoryMask: false,
       outputConfidenceMasks: true,
     })
-  } catch {
-    console.warn('GPU delegate failed for segmentation, falling back to CPU')
-    segmenter = await ImageSegmenter.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: modelPath, delegate: 'CPU' },
-      runningMode: 'VIDEO',
-      outputCategoryMask: false,
-      outputConfidenceMasks: true,
-    })
+  }
+
+  const delegates = ['GPU', 'CPU']
+  for (const delegate of delegates) {
+    try { segmenter = await tryCreate(modelPath, delegate); break }
+    catch (e1) {
+      if (fallbackModelPath) {
+        try { segmenter = await tryCreate(fallbackModelPath, delegate); break }
+        catch (e2) { console.warn(`Mask segmenter ${delegate} delegate failed for both paths:`, e2.message || e2) }
+      } else {
+        console.warn(`Mask segmenter ${delegate} delegate failed:`, e1.message || e1)
+      }
+    }
+  }
+  if (!segmenter) {
+    throw new Error('人物分割模型加载失败，请在网络良好的环境下重试')
   }
 
   onProgress?.({ stage: 'mask', progress: 1.0, text: '人物分割模型加载完成' })

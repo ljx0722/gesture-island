@@ -518,8 +518,8 @@ async function _startCamera() {
       },
     })
 
-    // Only init mask when on filters tab
-    if (currentModule === 'filters') {
+    // Only init mask when on filters or shadowplay tab
+    if (currentModule === 'filters' || currentModule === 'shadowplay') {
       pipeline.setNeedsMask(true)
       if (!pipeline.maskSegmenter) {
         await pipeline.initMaskSegmenter({
@@ -850,7 +850,7 @@ function _renderWarpSelector() {
 }
 
 function _renderLighttrailsSelector() {
-  const gallery = document.getElementById('preset-gallery')
+  const gallery = document.getElementById('trail-selector')
   if (!gallery) return
   gallery.classList.remove('hidden')
   const presets = lighttrailsModule?.getAllPresets() || []
@@ -869,7 +869,7 @@ function _renderLighttrailsSelector() {
 }
 
 function _renderShadowplaySelector() {
-  const gallery = document.getElementById('preset-gallery')
+  const gallery = document.getElementById('shadow-selector')
   if (!gallery) return
   gallery.classList.remove('hidden')
   const worlds = shadowplayModule?.getAllWorlds() || []

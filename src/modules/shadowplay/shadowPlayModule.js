@@ -100,10 +100,7 @@ export class ShadowPlayModule {
       const alpha = 0.4 + 0.3 * Math.sin(pt.phase)
       wctx.beginPath()
       wctx.arc(pt.x * w, pt.y * h, pt.size, 0, Math.PI * 2)
-      wctx.fillStyle = pt.color.replace(')', `,${alpha})`).replace('rgb', 'rgba')
-      if (!pt.color.startsWith('#')) {
-        // Handle hex colors
-      }
+      wctx.fillStyle = this._colorToRgba(pt.color, alpha)
       wctx.fill()
     }
 
@@ -181,6 +178,20 @@ export class ShadowPlayModule {
   }
 
   // ── helpers ──
+
+  _colorToRgba(color, alpha) {
+    if (color.startsWith('#')) return this._hexToRgba(color, alpha)
+    if (color.startsWith('rgb(')) return color.replace(')', `,${alpha})`).replace('rgb', 'rgba')
+    return `rgba(255,255,255,${alpha})`
+  }
+
+  _hexToRgba(hex, alpha) {
+    const c = hex.replace('#', '')
+    const r = parseInt(c.slice(0, 2), 16)
+    const g = parseInt(c.slice(2, 4), 16)
+    const b = parseInt(c.slice(4, 6), 16)
+    return `rgba(${r},${g},${b},${alpha})`
+  }
 
   _parseHexColor(hex) {
     const c = hex.replace('#', '')

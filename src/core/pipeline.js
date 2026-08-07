@@ -1,6 +1,7 @@
 // pipeline.js — 共享编排器：摄像头 + 手部追踪 + 手势引擎 + 遮罩 + 渲染
 import { CameraManager } from './camera.js'
 import { createHandTracker } from '../tracking/handTracker.js'
+import { createMaskSegmenter } from '../tracking/maskSegmenter.js'
 import { HandIdentityTracker } from '../tracking/handIdentity.js'
 import { GestureEngine } from '../gestures/gestureEngine.js'
 import { sortLeftRight, getHandCount } from '../tracking/handSorter.js'
