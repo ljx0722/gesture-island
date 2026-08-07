@@ -127,9 +127,6 @@ export class ParticleModel {
         uScatterDist: { value: this.scatterDist }, uNoiseAmp: { value: this.noiseAmp },
         uPointScale: { value: this.pointScale }, uColor: { value: this.color },
         uOpacity: { value: this.opacity }, uHandVelocity: { value: 0 },
-        uHandInfluence: { value: 0.5 }, uFlowSpeed: { value: 1 }, uNoiseScale: { value: 12 },
-        uBurstStrength: { value: 0.4 }, uRepelRadius: { value: 0.5 }, uGlow: { value: 0.6 },
-        uColorSpread: { value: 0 }, uTrail: { value: 0 },
         uRepel: { value: new T.Vector2(0, 0) },
         uRepelStr: { value: 0 },
         uPointShape: { value: this.pointShape },
@@ -159,7 +156,7 @@ export class ParticleModel {
       trail: 'uTrail', burstStrength: 'uBurstStrength', repelRadius: 'uRepelRadius', handInfluence: 'uHandInfluence',
     }
     for (const [key, uniform] of Object.entries(uniformMap)) {
-      if (p[key] !== undefined) this.material.uniforms[uniform].value = p[key]
+      if (p[key] !== undefined && this.material.uniforms[uniform]) this.material.uniforms[uniform].value = p[key]
     }
     if (p.pointShape !== undefined) { this.pointShape = p.pointShape; this.material.uniforms.uPointShape.value = p.pointShape }
   }

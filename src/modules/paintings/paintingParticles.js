@@ -118,9 +118,7 @@ export class PaintingParticles {
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         uProgress: { value: 0 }, uTime: { value: 0 },
-        uNoiseAmp: { value: this.noiseAmp }, uNoiseSpeed: { value: 1 }, uNoiseScale: { value: 12 }, uPointScale: { value: this.pointScale },
-        uBrightness: { value: 1 }, uContrast: { value: 1 }, uSaturation: { value: 1 }, uColorTemperature: { value: 0 },
-        uOpacity: { value: 0.95 }, uBrushRoundness: { value: 0.5 },
+        uNoiseAmp: { value: this.noiseAmp }, uPointScale: { value: this.pointScale },
         uDomeMode: { value: this.domeMode }, uBrushLength: { value: this.brushLength },
       },
       transparent: true, depthWrite: false, blending: T3.AdditiveBlending,
@@ -150,7 +148,7 @@ export class PaintingParticles {
     if (p.brushLength !== undefined) this.material.uniforms.uBrushLength.value = p.brushLength
     const uniformMap = { noiseSpeed: 'uNoiseSpeed', noiseScale: 'uNoiseScale', brightness: 'uBrightness', contrast: 'uContrast', saturation: 'uSaturation', colorTemperature: 'uColorTemperature', opacity: 'uOpacity', brushRoundness: 'uBrushRoundness' }
     for (const [key, uniform] of Object.entries(uniformMap)) {
-      if (p[key] !== undefined) this.material.uniforms[uniform].value = p[key]
+      if (p[key] !== undefined && this.material.uniforms[uniform]) this.material.uniforms[uniform].value = p[key]
     }
     if (p.domeRadius !== undefined) { this.domeRadius = p.domeRadius; this._rebuildDome() }
     if (p.wrapAngle !== undefined) { this.wrapAngle = p.wrapAngle; this._rebuildDome() }
