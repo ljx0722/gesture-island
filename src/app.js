@@ -4,6 +4,8 @@ import { ParticleModule } from './modules/particles/particleModule.js'
 import { PaintingModule } from './modules/paintings/paintingModule.js'
 import { FilterModule } from './modules/filters/filterModule.js'
 import { HandwarpModule } from './modules/handwarp/handwarpModule.js'
+import { LightTrailsModule } from './modules/lighttrails/lightTrailsModule.js'
+import { ShadowPlayModule } from './modules/shadowplay/shadowPlayModule.js'
 import { StatusDisplay } from './ui/status.js'
 import { ParamPanel } from './ui/paramPanel.js'
 import { PRESETS } from './modules/particles/particlePresets.js'
@@ -46,6 +48,8 @@ let pipeline = null
 let particleModule = null
 let filterModule = null
 let handwarpModule = null
+let lighttrailsModule = null
+let shadowplayModule = null
 let paintingModule = null
 let statusDisplay = null
 let paramPanel = null
@@ -55,7 +59,7 @@ let onboarding = null
 let challengeMode = null
 let cameraActive = false
 let demoActive = false
-let moduleInitialized = { particles: false, filters: false, paintings: false, handwarp: false }
+let moduleInitialized = { particles: false, filters: false, paintings: false, handwarp: false, lighttrails: false, shadowplay: false }
 let animationId = 0
 let lastTime = 0
 
@@ -175,6 +179,20 @@ function _initHandwarpModule() {
   moduleInitialized.handwarp = true
 }
 
+function _initLighttrailsModule() {
+  if (lighttrailsModule) return
+  lighttrailsModule = new LightTrailsModule(cameraCanvas, videoEl)
+  lighttrailsModule.init()
+  moduleInitialized.lighttrails = true
+}
+
+function _initShadowplayModule() {
+  if (shadowplayModule) return
+  shadowplayModule = new ShadowPlayModule(cameraCanvas, videoEl)
+  shadowplayModule.init()
+  moduleInitialized.shadowplay = true
+}
+
 // ── Render Loop ──
 function _startRenderLoop() {
   const loop = (now) => {
@@ -192,6 +210,12 @@ function _startRenderLoop() {
     }
     if (currentModule === 'handwarp' && handwarpModule && demoActive && !cameraActive) {
       handwarpModule.renderDemo(dt)
+    }
+    if (currentModule === 'lighttrails' && lighttrailsModule && demoActive && !cameraActive) {
+      lighttrailsModule.renderDemo(dt)
+    }
+    if (currentModule === 'shadowplay' && shadowplayModule && demoActive && !cameraActive) {
+      shadowplayModule.renderDemo(dt)
     }
 
     // Mouse gesture smooth lerp
@@ -311,6 +335,12 @@ function _subscribePipeline() {
     }
     if (currentModule === 'handwarp' && handwarpModule && !demoActive) {
       handwarpModule.render(frameData, 0.016)
+    }
+    if (currentModule === 'lighttrails' && lighttrailsModule && !demoActive) {
+      lighttrailsModule.render(frameData, 0.016)
+    }
+    if (currentModule === 'shadowplay' && shadowplayModule && !demoActive) {
+      shadowplayModule.render(frameData, 0.016)
     }
     _renderHandPreview(frameData)
   })
@@ -454,6 +484,19 @@ async function switchModule(moduleId) {
       _renderModuleControls('handwarp')
       _showParamPanel('handwarp')
       statusDisplay.setStatus('就绪')
+    } else if (moduleId === 'lighttrails') {
+      cameraCanvas.classList.remove('hidden')
+      _initLighttrailsModule()
+      _renderModuleControls('lighttrails')
+      _showParamPanel('lighttrails')
+      statusDisplay.setStatus('就绪')
+    } else if (moduleId === 'shadowplay') {
+      cameraCanvas.classList.remove('hidden')
+      pipeline.setNeedsMask(true)
+      _initShadowplayModule()
+      _renderModuleControls('shadowplay')
+      _showParamPanel('shadowplay')
+      statusDisplay.setStatus('就绪')
     }
     _updateHints(moduleId)
   } catch (e) {
@@ -543,6 +586,10 @@ function toggleDemo() {
       statusDisplay.setHandStatus(2, '演示')
     } else if (currentModule === 'handwarp' && handwarpModule) {
       statusDisplay.setHandStatus(2, '演示')
+    } else if (currentModule === 'lighttrails' && lighttrailsModule) {
+      statusDisplay.setHandStatus(2, '演示')
+    } else if (currentModule === 'shadowplay' && shadowplayModule) {
+      statusDisplay.setHandStatus(2, '演示')
     }
   } else {
     btnDemo.classList.remove('on')
@@ -572,6 +619,12 @@ function reset() {
   } else if (currentModule === 'handwarp' && handwarpModule) {
     handwarpModule.reset()
     _showParamPanel('handwarp')
+  } else if (currentModule === 'lighttrails' && lighttrailsModule) {
+    lighttrailsModule.reset()
+    _showParamPanel('lighttrails')
+  } else if (currentModule === 'shadowplay' && shadowplayModule) {
+    shadowplayModule.reset()
+    _showParamPanel('shadowplay')
   }
 }
 
@@ -581,6 +634,8 @@ function _renderModuleControls(moduleId) {
   else if (moduleId === 'filters') _renderFilterSelector()
   else if (moduleId === 'paintings') _renderPaintingSelector()
   else if (moduleId === 'handwarp') _renderWarpSelector()
+  else if (moduleId === 'lighttrails') _renderLighttrailsSelector()
+  else if (moduleId === 'shadowplay') _renderShadowplaySelector()
 }
 
 function _renderPresetGallery() {
@@ -793,6 +848,44 @@ function _renderWarpSelector() {
   })
 }
 
+function _renderLighttrailsSelector() {
+  const gallery = document.getElementById('preset-gallery')
+  if (!gallery) return
+  gallery.classList.remove('hidden')
+  const presets = lighttrailsModule?.getAllPresets() || []
+  const current = lighttrailsModule?.getCurrentPreset()
+  const idx = presets.findIndex(p => p.id === current?.id)
+  let html = '<button class="selector-arrow" id="trail-prev">◀</button>'
+  html += `<span class="selector-name">${current?.name || ''}</span>`
+  html += '<button class="selector-arrow" id="trail-next">▶</button>'
+  html += '<div class="selector-dots">'
+  presets.forEach((p, i) => { html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-trail="${i}" title="${p.name}"></span>` })
+  html += '</div>'
+  gallery.innerHTML = html
+  document.getElementById('trail-prev')?.addEventListener('click', () => { lighttrailsModule?.prevPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() })
+  document.getElementById('trail-next')?.addEventListener('click', () => { lighttrailsModule?.nextPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() })
+  gallery.querySelectorAll('.selector-dot').forEach(dot => { dot.addEventListener('click', () => { lighttrailsModule?.selectPreset(parseInt(dot.dataset.trail)); _renderLighttrailsSelector(); audioManager?.presetSwitch() }) })
+}
+
+function _renderShadowplaySelector() {
+  const gallery = document.getElementById('preset-gallery')
+  if (!gallery) return
+  gallery.classList.remove('hidden')
+  const worlds = shadowplayModule?.getAllWorlds() || []
+  const current = shadowplayModule?.getCurrentWorld()
+  const idx = worlds.findIndex(w => w.id === current?.id)
+  let html = '<button class="selector-arrow" id="shadow-prev">◀</button>'
+  html += `<span class="selector-name">${current?.name || ''}</span>`
+  html += '<button class="selector-arrow" id="shadow-next">▶</button>'
+  html += '<div class="selector-dots">'
+  worlds.forEach((w, i) => { html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-shadow="${i}" title="${w.name}"></span>` })
+  html += '</div>'
+  gallery.innerHTML = html
+  document.getElementById('shadow-prev')?.addEventListener('click', () => { shadowplayModule?.prevWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() })
+  document.getElementById('shadow-next')?.addEventListener('click', () => { shadowplayModule?.nextWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() })
+  gallery.querySelectorAll('.selector-dot').forEach(dot => { dot.addEventListener('click', () => { shadowplayModule?.selectWorld(parseInt(dot.dataset.shadow)); _renderShadowplaySelector(); audioManager?.presetSwitch() }) })
+}
+
 // ── Param Panel ──
 function _showParamPanel(moduleId) {
   if (moduleId === 'particles') {
@@ -838,6 +931,29 @@ function _showParamPanel(moduleId) {
       params[key] = val
       handwarpModule?.setParams({ [key]: val })
     })
+  } else if (moduleId === 'lighttrails') {
+    const params = lighttrailsModule?.params || {}
+    paramPanel.setModule('lighttrails', {
+      trailWidth: { label: '画笔粗细', min: 2, max: 20, step: 1, default: 8 },
+      fade: { label: '拖尾长度', min: 0.85, max: 0.99, step: 0.01, default: 0.94 },
+      glowIntensity: { label: '发光强度', min: 0, max: 1, step: 0.05, default: 0.7 },
+      hueShift: { label: '色彩变化', min: 0, max: 1, step: 0.05, default: 0.4 },
+    }, params, (key, val) => {
+      params[key] = val
+      lighttrailsModule?.setParams({ [key]: val })
+    })
+  } else if (moduleId === 'shadowplay') {
+    const params = shadowplayModule?.params || {}
+    paramPanel.setModule('shadowplay', {
+      maskSoftness: { label: '轮廓柔化', min: 2, max: 20, step: 1, default: 8 },
+      edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.5 },
+      particleSize: { label: '粒子大小', min: 0.5, max: 4, step: 0.1, default: 1.5 },
+      particleSpeed: { label: '粒子速度', min: 0.1, max: 1, step: 0.05, default: 0.3 },
+      worldAlpha: { label: '世界透明度', min: 0.3, max: 1, step: 0.05, default: 0.9 },
+    }, params, (key, val) => {
+      params[key] = val
+      shadowplayModule?.setParams({ [key]: val })
+    })
   }
   paramPanel.show()
 }
@@ -876,6 +992,10 @@ function _captureProjectState() {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
   } else if (currentModule === 'handwarp' && handwarpModule) {
     state.scene = { module: 'handwarp', effectId: handwarpModule.activeEffect, params: { ...handwarpModule.params } }
+  } else if (currentModule === 'lighttrails' && lighttrailsModule) {
+    state.scene = { module: 'lighttrails', presetIdx: lighttrailsModule._presetIdx, params: { ...lighttrailsModule.params } }
+  } else if (currentModule === 'shadowplay' && shadowplayModule) {
+    state.scene = { module: 'shadowplay', worldIdx: shadowplayModule._worldIdx, params: { ...shadowplayModule.params } }
   }
   return state
 }
@@ -1085,6 +1205,8 @@ function _updateHints(moduleId) {
     filters: '双手入镜成滤镜区 单手全屏 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
     paintings: '移动手旋转画面 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
     handwarp: '手撕画面 | ←→ 切换效果 | D 演示 | C 摄像头 | S 截图 | 捏合撕裂',
+    lighttrails: '指尖画光痕 | ←→ 切换画笔 | D 演示 | C 摄像头 | S 截图',
+    shadowplay: '身体是窗口 | ←→ 切换世界 | D 演示 | C 摄像头 | S 截图',
   }
   hintsText.textContent = map[moduleId] || map.particles
 }
@@ -1165,17 +1287,23 @@ function _bindEvents() {
       case '2': switchModule('filters'); break
       case '3': switchModule('paintings'); break
       case '4': switchModule('handwarp'); break
+      case '5': switchModule('lighttrails'); break
+      case '6': switchModule('shadowplay'); break
       case 'ArrowLeft':
         if (currentModule === 'particles') { particleModule?.prevPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
         else if (currentModule === 'handwarp') { handwarpModule?.prevEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'lighttrails') { lighttrailsModule?.prevPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'shadowplay') { shadowplayModule?.prevWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break
       case 'ArrowRight':
         if (currentModule === 'particles') { particleModule?.nextPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
         else if (currentModule === 'handwarp') { handwarpModule?.nextEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'lighttrails') { lighttrailsModule?.nextPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
+        else if (currentModule === 'shadowplay') { shadowplayModule?.nextWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break
       case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) btnCamera.click(); break
       case '0': if (!e.ctrlKey && !e.metaKey) reset(); break
