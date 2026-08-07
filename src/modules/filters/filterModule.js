@@ -443,5 +443,8 @@ export class FilterModule {
 
   dispose() {
     this.maskSegmenter?.close?.()
+    this.maskSegmenter = null
+    this._sourceCanvas.width = 0; this._processCanvas.width = 0
+    this._downCanvas.width = 0; this._demoCanvas.width = 0
   }
 }

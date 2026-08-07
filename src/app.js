@@ -440,6 +440,10 @@ async function switchModule(moduleId) {
     paintingModule?.dispose()
     moduleInitialized.paintings = false
   }
+  if (currentModule === 'filters') { filterModule?.dispose(); moduleInitialized.filters = false }
+  if (currentModule === 'handwarp') { handwarpModule?.dispose(); moduleInitialized.handwarp = false }
+  if (currentModule === 'lighttrails') { lighttrailsModule?.dispose(); moduleInitialized.lighttrails = false }
+  if (currentModule === 'shadowplay') { shadowplayModule?.dispose(); moduleInitialized.shadowplay = false }
 
   threeCanvas.classList.add('hidden')
   cameraCanvas.classList.add('hidden')
@@ -499,6 +503,7 @@ async function switchModule(moduleId) {
       _showParamPanel('shadowplay')
       statusDisplay.setStatus('就绪')
     }
+    audioManager?.moduleSwitch(moduleId)
     _updateHints(moduleId)
   } catch (e) {
     console.error('Module switch error:', e)
@@ -631,12 +636,11 @@ function reset() {
 
 // ── UI Rendering ──
 function _renderModuleControls(moduleId) {
-  if (moduleId === 'particles') _renderPresetGallery()
-  else if (moduleId === 'filters') _renderFilterSelector()
-  else if (moduleId === 'paintings') _renderPaintingSelector()
-  else if (moduleId === 'handwarp') _renderWarpSelector()
-  else if (moduleId === 'lighttrails') _renderLighttrailsSelector()
-  else if (moduleId === 'shadowplay') _renderShadowplaySelector()
+  const renderers = {
+    particles: _renderPresetGallery, filters: _renderFilterSelector, paintings: _renderPaintingSelector,
+    handwarp: _renderWarpSelector, lighttrails: _renderLighttrailsSelector, shadowplay: _renderShadowplaySelector,
+  }
+  renderers[moduleId]?.()
 }
 
 function _renderPresetGallery() {
@@ -909,35 +913,17 @@ function _showParamPanel(moduleId) {
       else paintingModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'handwarp') {
-    paramPanel.setModule('handwarp', {
-      tearSize: { label: '撕口大小', min: 12, max: 60, step: 1, default: 32 },
-      healSpeed: { label: '自愈速度', min: 0.3, max: 5, step: 0.1, default: 1.8 },
-      edgeRoughness: { label: '毛刺程度', min: 0, max: 1, step: 0.05, default: 0.6 },
-      edgeGlow: { label: '裂口辉光', min: 0, max: 1, step: 0.05, default: 0.7 },
-      particleSpeed: { label: '粒子速度', min: 0.05, max: 1, step: 0.05, default: 0.3 },
-      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
-    }, handwarpModule?.params || {}, (key, val) => {
+    paramPanel.setModule('handwarp', flattenSceneSchema('handwarp'), handwarpModule?.params || {}, (key, val) => {
       if (handwarpModule?.params) handwarpModule.params[key] = val
       handwarpModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'lighttrails') {
-    paramPanel.setModule('lighttrails', {
-      trailWidth: { label: '画笔粗细', min: 2, max: 20, step: 1, default: 8 },
-      fade: { label: '拖尾长度', min: 0.85, max: 0.99, step: 0.01, default: 0.94 },
-      glowIntensity: { label: '发光强度', min: 0, max: 1, step: 0.05, default: 0.7 },
-      hueShift: { label: '色彩变化', min: 0, max: 1, step: 0.05, default: 0.4 },
-    }, lighttrailsModule?.params || {}, (key, val) => {
+    paramPanel.setModule('lighttrails', flattenSceneSchema('lighttrails'), lighttrailsModule?.params || {}, (key, val) => {
       if (lighttrailsModule?.params) lighttrailsModule.params[key] = val
       lighttrailsModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'shadowplay') {
-    paramPanel.setModule('shadowplay', {
-      maskSoftness: { label: '轮廓柔化', min: 2, max: 16, step: 1, default: 6 },
-      edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.4 },
-      repelStrength: { label: '粒子推斥', min: 0, max: 1, step: 0.05, default: 0.3 },
-      vortexStrength: { label: '挥手涡旋', min: 0, max: 1, step: 0.05, default: 0.2 },
-      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
-    }, shadowplayModule?.params || {}, (key, val) => {
+    paramPanel.setModule('shadowplay', flattenSceneSchema('shadowplay'), shadowplayModule?.params || {}, (key, val) => {
       if (shadowplayModule?.params) shadowplayModule.params[key] = val
       shadowplayModule?.setParams({ [key]: val })
     })
@@ -1024,6 +1010,18 @@ function _restoreProject(project) {
       paintingModule.setParams(scene.params || {})
       _renderModuleControls('paintings'); _showParamPanel('paintings')
     })
+  } else if (scene.module === 'handwarp' && handwarpModule) {
+    handwarpModule.selectWorld(scene.worldIdx ?? 0)
+    handwarpModule.setParams(scene.params || {})
+    _renderWarpSelector(); _showParamPanel('handwarp')
+  } else if (scene.module === 'lighttrails' && lighttrailsModule) {
+    lighttrailsModule.selectPreset(scene.presetIdx ?? 0)
+    lighttrailsModule.setParams(scene.params || {})
+    _renderLighttrailsSelector(); _showParamPanel('lighttrails')
+  } else if (scene.module === 'shadowplay' && shadowplayModule) {
+    shadowplayModule.selectWorld(scene.worldIdx ?? 0)
+    shadowplayModule.setParams(scene.params || {})
+    _renderShadowplaySelector(); _showParamPanel('shadowplay')
   }
   window._currentProjectId = project.id
   document.getElementById('project-title').value = project.title || ''
@@ -1036,9 +1034,8 @@ function _renderProjectList() {
   const list = document.getElementById('project-list')
   if (!list || !projectStore) return
   const projects = projectStore.list()
-  const moduleLabel = project => project.module === 'particles'
-    ? `粒子魔法${project.scene?.theme ? ` · ${project.scene.theme}` : ''}`
-    : project.module === 'filters' ? '魔法滤镜' : '我的画展'
+  const LABELS = { particles: '粒子魔法', filters: '魔法滤镜', paintings: '我的画展', handwarp: '手撕现实', lighttrails: '光之轨迹', shadowplay: '暗影剧场' }
+  const moduleLabel = project => LABELS[project.module] || project.module || '未知模块'
   list.innerHTML = projects.length ? projects.map(project => `<button class="project-item" data-project-id="${project.id}"><strong>${_escapeHtml(project.title)}</strong><small>${_escapeHtml(moduleLabel(project))}</small></button>`).join('') : '<div class="project-empty">还没有作品，先创造一个吧</div>'
   list.querySelectorAll('.project-item').forEach(item => item.addEventListener('click', () => _restoreProject(projectStore.get(item.dataset.projectId))))
 }
@@ -1318,9 +1315,11 @@ function _bindEvents() {
     if (document.hidden) {
       if (currentModule === 'particles') particleModule?.stop()
       else if (currentModule === 'paintings') paintingModule?.stop()
+      if (pipeline) pipeline.stopLoop()
     } else {
       if (currentModule === 'particles') particleModule?.start()
       else if (currentModule === 'paintings') paintingModule?.start()
+      if (pipeline && cameraActive) pipeline.startLoop()
     }
   })
 }

@@ -331,5 +331,9 @@ export class HandwarpModule {
   }
 
   reset() { this._tearCanvas = null; this._prevPinchPos = {}; this._prevPinchStates = {}; this._demoTime = 0; this._initWorld(WORLDS[this._worldIdx]) }
-  dispose() {}
+  dispose() {
+    this._sourceCanvas.width = 0; this._maskCanvas.width = 0; this._worldCanvas.width = 0
+    if (this._tearCanvas) this._tearCanvas.width = 0
+    this._tearMask = null
+  }
 }

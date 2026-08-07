@@ -239,5 +239,5 @@ export class LightTrailsModule {
   }
 
   reset() { this._history = {}; this._demoTime = 0 }
-  dispose() {}
+  dispose() { this._trailCanvas.width = 0; this._cameraCanvas.width = 0; this._history = {} }
 }

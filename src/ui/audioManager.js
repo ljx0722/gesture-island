@@ -86,6 +86,11 @@ export class AudioManager {
     this._tone(first, 0.1, gesture === 'fist' ? 'sine' : 'triangle', 0.07)
     setTimeout(() => this._tone(second, 0.08, 'sine', 0.045), 60)
   }
+  moduleSwitch(moduleId) {
+    const colors = { particles: [523, 659], filters: [440, 660], paintings: [659, 784], handwarp: [330, 440], lighttrails: [784, 1047], shadowplay: [196, 261] }
+    const [f1, f2] = colors[moduleId] || [440, 550]
+    this._tone(f1, 0.08, 'triangle', 0.07); setTimeout(() => this._tone(f2, 0.1, 'sine', 0.06), 60)
+  }
   filterSwitch() { this._tone(660, 0.06, 'triangle', 0.08); setTimeout(() => this._tone(880, 0.08, 'triangle', 0.06), 50) }
   presetSwitch() { this._tone(440, 0.08, 'sine', 0.06); setTimeout(() => this._tone(550, 0.06), 40); setTimeout(() => this._tone(660, 0.06), 80) }
   uploadDone() { this._tone(523, 0.12, 'sine', 0.12); setTimeout(() => this._tone(659, 0.1), 80); setTimeout(() => this._tone(784, 0.15), 160) }

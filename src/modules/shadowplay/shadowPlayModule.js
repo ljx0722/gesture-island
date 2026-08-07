@@ -235,5 +235,5 @@ export class ShadowPlayModule {
   }
 
   reset() { this._demoTime = 0; this._initWorld(WORLDS[this._worldIdx]) }
-  dispose() {}
+  dispose() { this._sourceCanvas.width = 0; this._worldCanvas.width = 0 }
 }

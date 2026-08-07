@@ -73,6 +73,33 @@ export const SCENE_PARAM_SCHEMA = {
       sampleDensity: { label: '画面细腻度', min: 1, max: 8, step: 1, default: 3, applyMode: 'rebuild' },
     },
   },
+  handwarp: {
+    basic: {
+      tearSize: { label: '撕口大小', min: 12, max: 60, step: 1, default: 32 },
+      healSpeed: { label: '自愈速度', min: 0.3, max: 5, step: 0.1, default: 1.8 },
+      edgeRoughness: { label: '毛刺程度', min: 0, max: 1, step: 0.05, default: 0.6 },
+      edgeGlow: { label: '裂口辉光', min: 0, max: 1, step: 0.05, default: 0.7 },
+      particleSpeed: { label: '粒子速度', min: 0.05, max: 1, step: 0.05, default: 0.3 },
+      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
+    },
+  },
+  lighttrails: {
+    basic: {
+      trailWidth: { label: '画笔粗细', min: 2, max: 20, step: 1, default: 8 },
+      fade: { label: '拖尾长度', min: 0.85, max: 0.99, step: 0.01, default: 0.94 },
+      glowIntensity: { label: '发光强度', min: 0, max: 1, step: 0.05, default: 0.7 },
+      hueShift: { label: '色彩变化', min: 0, max: 1, step: 0.05, default: 0.4 },
+    },
+  },
+  shadowplay: {
+    basic: {
+      maskSoftness: { label: '轮廓柔化', min: 2, max: 16, step: 1, default: 6 },
+      edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.4 },
+      repelStrength: { label: '粒子推斥', min: 0, max: 1, step: 0.05, default: 0.3 },
+      vortexStrength: { label: '挥手涡旋', min: 0, max: 1, step: 0.05, default: 0.2 },
+      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
+    },
+  },
 }
 
 export function flattenSceneSchema(moduleId) {
