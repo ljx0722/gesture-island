@@ -18,7 +18,7 @@ export class ParticleModule {
     this.scene = new T.Scene()
     this.scene.background = new T.Color('#0a0a0f')
     this.camera = new T.PerspectiveCamera(55, this._safeW(container) / Math.max(1, this._safeH(container)), 0.1, 50)
-    this.camera.position.set(0, 0, 3.5)
+    this.camera.position.set(0, 0, 3.8)
     this.camera.lookAt(0, 0, 0)
 
     if (T.OrbitControls) {
@@ -45,7 +45,7 @@ export class ParticleModule {
     this._handPos = null; this._handVelocity = 0; this._gestureRotBias = 0
 
     this.params = {
-      pointScale: 2.2, scatterDist: 1.5, noiseAmp: 0.6,
+      pointScale: 1.8, scatterDist: 1.5, noiseAmp: 0.6,
       lerpSpeed: 3.0, rotationSpeed: 0.25, opacity: 0.9,
       color: '#6c8cff', pointShape: 0,
       flowSpeed: 1, noiseScale: 12, glow: 0.6, colorSpread: 0, trail: 0,
@@ -92,7 +92,7 @@ export class ParticleModule {
     this.group.position.set(0, 0, 0)
     this.group.rotation.set(0, 0, 0)
     this.controls?.target.set(0, 0, 0)
-    this.camera.position.set(0, 0, 3.5)
+    this.camera.position.set(0, 0, 3.8)
     this.camera.lookAt(0, 0, 0)
     this.controls?.update()
     this.group.add(this.particleModel.points)
@@ -123,10 +123,10 @@ export class ParticleModule {
     // Pinch → zoom scale (closer to camera)
     if (frameData.isPinching && this._handPos) {
       const pinchScale = 1.0 - (1 - frameData.openness) * (this.params.cameraZoom ?? 0.5)
-      this.camera.position.z = 3.5 * pinchScale
+      this.camera.position.z = 3.8 * pinchScale
       this.camera.lookAt(0, 0, 0)
     } else if (this._handPos) {
-      this.camera.position.z += (3.5 - this.camera.position.z) * 0.1
+      this.camera.position.z += (3.8 - this.camera.position.z) * 0.1
     }
 
     // Two-hand distance → global particle scale

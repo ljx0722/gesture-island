@@ -9,7 +9,7 @@ export const PARAM_GROUPS = [
 export const SCENE_PARAM_SCHEMA = {
   particles: {
     basic: {
-      pointScale: { label: '粒子大小', min: 0.3, max: 5, step: 0.1, default: 2.2 },
+      pointScale: { label: '粒子大小', min: 0.3, max: 5, step: 0.1, default: 1.8 },
       scatterDist: { label: '散开程度', min: 0.1, max: 3, step: 0.05, default: 1.5 },
       noiseAmp: { label: '流动幅度', min: 0, max: 1, step: 0.01, default: 0.6 },
       opacity: { label: '透明程度', min: 0.1, max: 1, step: 0.01, default: 0.9 },
