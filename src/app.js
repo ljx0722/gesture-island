@@ -101,7 +101,7 @@ async function init() {
     await new Promise(resolve => requestAnimationFrame(resolve))
     resizeCanvas()
     await _initParticlesModule()
-    particleModule?.setGestureOpenness(0.5)
+    particleModule?.setGestureOpenness(1.0)
     statusDisplay.hideLoading()
   } catch (e) {
     console.error('Particle module init error:', e)
