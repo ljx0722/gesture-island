@@ -3,6 +3,7 @@ import { Pipeline } from './core/pipeline.js'
 import { ParticleModule } from './modules/particles/particleModule.js'
 import { PaintingModule } from './modules/paintings/paintingModule.js'
 import { FilterModule } from './modules/filters/filterModule.js'
+import { HandwarpModule } from './modules/handwarp/handwarpModule.js'
 import { StatusDisplay } from './ui/status.js'
 import { ParamPanel } from './ui/paramPanel.js'
 import { PRESETS } from './modules/particles/particlePresets.js'
@@ -44,6 +45,7 @@ let sharedRenderer = null
 let pipeline = null
 let particleModule = null
 let filterModule = null
+let handwarpModule = null
 let paintingModule = null
 let statusDisplay = null
 let paramPanel = null
@@ -53,7 +55,7 @@ let onboarding = null
 let challengeMode = null
 let cameraActive = false
 let demoActive = false
-let moduleInitialized = { particles: false, filters: false, paintings: false }
+let moduleInitialized = { particles: false, filters: false, paintings: false, handwarp: false }
 let animationId = 0
 let lastTime = 0
 
@@ -166,6 +168,13 @@ async function _initFilterModule() {
   moduleInitialized.filters = true
 }
 
+function _initHandwarpModule() {
+  if (handwarpModule) return
+  handwarpModule = new HandwarpModule(cameraCanvas, videoEl)
+  handwarpModule.init()
+  moduleInitialized.handwarp = true
+}
+
 // ── Render Loop ──
 function _startRenderLoop() {
   const loop = (now) => {
@@ -177,9 +186,12 @@ function _startRenderLoop() {
     // Challenge mode timeout check
     if (challengeMode?.active) challengeMode.checkTimeout(now)
 
-    // Demo mode filter rendering
+    // Demo mode rendering
     if (currentModule === 'filters' && filterModule && demoActive && !cameraActive) {
       filterModule.renderDemo(dt)
+    }
+    if (currentModule === 'handwarp' && handwarpModule && demoActive && !cameraActive) {
+      handwarpModule.renderDemo(dt)
     }
 
     // Mouse gesture smooth lerp
@@ -296,6 +308,9 @@ function _subscribePipeline() {
     _handleGesture(frameData)
     if (currentModule === 'filters' && filterModule && !demoActive) {
       filterModule.render(frameData, 0.016)
+    }
+    if (currentModule === 'handwarp' && handwarpModule && !demoActive) {
+      handwarpModule.render(frameData, 0.016)
     }
     _renderHandPreview(frameData)
   })
@@ -433,6 +448,12 @@ async function switchModule(moduleId) {
       _renderModuleControls('paintings')
       _showParamPanel('paintings')
       statusDisplay.setStatus('就绪')
+    } else if (moduleId === 'handwarp') {
+      cameraCanvas.classList.remove('hidden')
+      _initHandwarpModule()
+      _renderModuleControls('handwarp')
+      _showParamPanel('handwarp')
+      statusDisplay.setStatus('就绪')
     }
     _updateHints(moduleId)
   } catch (e) {
@@ -520,6 +541,8 @@ function toggleDemo() {
     } else if (currentModule === 'filters' && filterModule) {
       filterModule.demoMode = true
       statusDisplay.setHandStatus(2, '演示')
+    } else if (currentModule === 'handwarp' && handwarpModule) {
+      statusDisplay.setHandStatus(2, '演示')
     }
   } else {
     btnDemo.classList.remove('on')
@@ -546,6 +569,9 @@ function reset() {
   } else if (currentModule === 'filters' && filterModule) {
     filterModule.resetFilterParams()
     _showParamPanel('filters')
+  } else if (currentModule === 'handwarp' && handwarpModule) {
+    handwarpModule.reset()
+    _showParamPanel('handwarp')
   }
 }
 
@@ -554,6 +580,7 @@ function _renderModuleControls(moduleId) {
   if (moduleId === 'particles') _renderPresetGallery()
   else if (moduleId === 'filters') _renderFilterSelector()
   else if (moduleId === 'paintings') _renderPaintingSelector()
+  else if (moduleId === 'handwarp') _renderWarpSelector()
 }
 
 function _renderPresetGallery() {
@@ -729,6 +756,43 @@ function _renderPaintingSelector() {
   })
 }
 
+function _renderWarpSelector() {
+  const warpSelector = document.getElementById('warp-selector')
+  if (!warpSelector) return
+  warpSelector.classList.remove('hidden')
+  const allEffects = handwarpModule?.getAllEffects() || []
+  const current = handwarpModule?.getCurrentEffect()
+  const idx = allEffects.findIndex(e => e.id === current?.id)
+  let html = '<button class="selector-arrow" id="warp-prev">◀</button>'
+  html += `<span class="selector-name">${current?.icon || ''} ${current?.name || ''}</span>`
+  html += '<button class="selector-arrow" id="warp-next">▶</button>'
+  html += '<div class="selector-dots">'
+  allEffects.forEach((e, i) => {
+    html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-warp="${i}" title="${e.name}"></span>`
+  })
+  html += '</div>'
+  warpSelector.innerHTML = html
+
+  document.getElementById('warp-prev')?.addEventListener('click', () => {
+    handwarpModule?.prevEffect()
+    _renderWarpSelector()
+    audioManager?.presetSwitch()
+  })
+  document.getElementById('warp-next')?.addEventListener('click', () => {
+    handwarpModule?.nextEffect()
+    _renderWarpSelector()
+    audioManager?.presetSwitch()
+  })
+  warpSelector.querySelectorAll('.selector-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      const all = handwarpModule?.getAllEffects() || []
+      const e = all[parseInt(dot.dataset.warp)]
+      if (e) { handwarpModule?.selectEffect(e.id); _renderWarpSelector() }
+      audioManager?.presetSwitch()
+    })
+  })
+}
+
 // ── Param Panel ──
 function _showParamPanel(moduleId) {
   if (moduleId === 'particles') {
@@ -759,6 +823,20 @@ function _showParamPanel(moduleId) {
       params[key] = val
       if (key === 'sampleDensity') await paintingModule?.setSampleDensity(val)
       else paintingModule?.setParams({ [key]: val })
+    })
+  } else if (moduleId === 'handwarp') {
+    const params = handwarpModule?.params || {}
+    paramPanel.setModule('handwarp', {
+      vortexStrength: { label: '漩涡强度', min: 5, max: 60, step: 1, default: 35 },
+      tearStrength: { label: '撕裂强度', min: 5, max: 60, step: 1, default: 30 },
+      rippleStrength: { label: '波纹强度', min: 5, max: 50, step: 1, default: 25 },
+      stretchStrength: { label: '拉伸强度', min: 5, max: 60, step: 1, default: 40 },
+      gravityStrength: { label: '重力拖拽', min: 2, max: 40, step: 1, default: 15 },
+      effectRadius: { label: '效果范围', min: 60, max: 400, step: 5, default: 180 },
+      tearThreshold: { label: '撕裂触发速度', min: 0.05, max: 0.5, step: 0.01, default: 0.15 },
+    }, params, (key, val) => {
+      params[key] = val
+      handwarpModule?.setParams({ [key]: val })
     })
   }
   paramPanel.show()
@@ -796,6 +874,8 @@ function _captureProjectState() {
     state.scene = { module: 'filters', filterId: filterModule.currentFilterId, params: { ...filterModule.filterParams }, common: { gestureSensitivity: filterModule.filterParams.gestureSensitivity ?? 1, backgroundMix: filterModule.filterParams.backgroundMix ?? 0, edgeStrength: filterModule.filterParams.edgeStrength ?? 0.2 } }
   } else if (currentModule === 'paintings' && paintingModule) {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
+  } else if (currentModule === 'handwarp' && handwarpModule) {
+    state.scene = { module: 'handwarp', effectId: handwarpModule.activeEffect, params: { ...handwarpModule.params } }
   }
   return state
 }
@@ -1004,6 +1084,7 @@ function _updateHints(moduleId) {
     particles: '挥手扰动粒子 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | M 静音 | ? 指南',
     filters: '双手入镜成滤镜区 单手全屏 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
     paintings: '移动手旋转画面 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
+    handwarp: '手撕画面 | ←→ 切换效果 | D 演示 | C 摄像头 | S 截图 | 捏合撕裂',
   }
   hintsText.textContent = map[moduleId] || map.particles
 }
@@ -1083,15 +1164,18 @@ function _bindEvents() {
       case '1': switchModule('particles'); break
       case '2': switchModule('filters'); break
       case '3': switchModule('paintings'); break
+      case '4': switchModule('handwarp'); break
       case 'ArrowLeft':
         if (currentModule === 'particles') { particleModule?.prevPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        else if (currentModule === 'handwarp') { handwarpModule?.prevEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
         break
       case 'ArrowRight':
         if (currentModule === 'particles') { particleModule?.nextPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
+        else if (currentModule === 'handwarp') { handwarpModule?.nextEffect(); _renderWarpSelector(); audioManager?.presetSwitch() }
         break
       case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) btnCamera.click(); break
       case '0': if (!e.ctrlKey && !e.metaKey) reset(); break
