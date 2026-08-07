@@ -126,6 +126,7 @@ async function init() {
   }
   _updateHints('particles')
   _startGestureDemo()
+  _showParamPanel('particles')
   const soundTheme = document.getElementById('sound-theme')
   if (soundTheme) soundTheme.value = audioManager.getTheme()
   const muteButton = document.getElementById('btn-mute')
@@ -889,9 +890,8 @@ function _renderShadowplaySelector() {
 // ── Param Panel ──
 function _showParamPanel(moduleId) {
   if (moduleId === 'particles') {
-    const params = particleModule?.params || {}
-    paramPanel.setModule('particles', flattenSceneSchema('particles'), params, (key, val) => {
-      params[key] = val
+    paramPanel.setModule('particles', flattenSceneSchema('particles'), particleModule?.params || {}, (key, val) => {
+      if (particleModule?.params) particleModule.params[key] = val
       particleModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'filters') {
@@ -911,14 +911,12 @@ function _showParamPanel(moduleId) {
       filterModule?.setFilterParam(key, val)
     })
   } else if (moduleId === 'paintings') {
-    const params = paintingModule?.params || {}
-    paramPanel.setModule('paintings', flattenSceneSchema('paintings'), params, async (key, val) => {
-      params[key] = val
+    paramPanel.setModule('paintings', flattenSceneSchema('paintings'), paintingModule?.params || {}, async (key, val) => {
+      if (paintingModule?.params) paintingModule.params[key] = val
       if (key === 'sampleDensity') await paintingModule?.setSampleDensity(val)
       else paintingModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'handwarp') {
-    const params = handwarpModule?.params || {}
     paramPanel.setModule('handwarp', {
       vortexStrength: { label: '漩涡强度', min: 5, max: 60, step: 1, default: 35 },
       tearStrength: { label: '撕裂强度', min: 5, max: 60, step: 1, default: 30 },
@@ -927,31 +925,29 @@ function _showParamPanel(moduleId) {
       gravityStrength: { label: '重力拖拽', min: 2, max: 40, step: 1, default: 15 },
       effectRadius: { label: '效果范围', min: 60, max: 400, step: 5, default: 180 },
       tearThreshold: { label: '撕裂触发速度', min: 0.05, max: 0.5, step: 0.01, default: 0.15 },
-    }, params, (key, val) => {
-      params[key] = val
+    }, handwarpModule?.params || {}, (key, val) => {
+      if (handwarpModule?.params) handwarpModule.params[key] = val
       handwarpModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'lighttrails') {
-    const params = lighttrailsModule?.params || {}
     paramPanel.setModule('lighttrails', {
       trailWidth: { label: '画笔粗细', min: 2, max: 20, step: 1, default: 8 },
       fade: { label: '拖尾长度', min: 0.85, max: 0.99, step: 0.01, default: 0.94 },
       glowIntensity: { label: '发光强度', min: 0, max: 1, step: 0.05, default: 0.7 },
       hueShift: { label: '色彩变化', min: 0, max: 1, step: 0.05, default: 0.4 },
-    }, params, (key, val) => {
-      params[key] = val
+    }, lighttrailsModule?.params || {}, (key, val) => {
+      if (lighttrailsModule?.params) lighttrailsModule.params[key] = val
       lighttrailsModule?.setParams({ [key]: val })
     })
   } else if (moduleId === 'shadowplay') {
-    const params = shadowplayModule?.params || {}
     paramPanel.setModule('shadowplay', {
       maskSoftness: { label: '轮廓柔化', min: 2, max: 20, step: 1, default: 8 },
       edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.5 },
       particleSize: { label: '粒子大小', min: 0.5, max: 4, step: 0.1, default: 1.5 },
       particleSpeed: { label: '粒子速度', min: 0.1, max: 1, step: 0.05, default: 0.3 },
       worldAlpha: { label: '世界透明度', min: 0.3, max: 1, step: 0.05, default: 0.9 },
-    }, params, (key, val) => {
-      params[key] = val
+    }, shadowplayModule?.params || {}, (key, val) => {
+      if (shadowplayModule?.params) shadowplayModule.params[key] = val
       shadowplayModule?.setParams({ [key]: val })
     })
   }

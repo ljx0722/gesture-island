@@ -15,6 +15,7 @@ export class ParamPanel {
 
   _render(paramDefs, values) {
     if (!paramDefs) { this.body.innerHTML = ''; return }
+    this.body.innerHTML = ''
 
     let html = '<div style="display:flex;flex-direction:column;gap:12px;">'
 
