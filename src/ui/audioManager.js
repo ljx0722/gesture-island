@@ -87,7 +87,7 @@ export class AudioManager {
     setTimeout(() => this._tone(second, 0.08, 'sine', 0.045), 60)
   }
   moduleSwitch(moduleId) {
-    const colors = { particles: [523, 659], filters: [440, 660], paintings: [659, 784], handwarp: [330, 440], lighttrails: [784, 1047], shadowplay: [196, 261] }
+    const colors = { particles: [523, 659], filters: [440, 660], paintings: [659, 784], lighttrails: [784, 1047], shadowplay: [196, 261] }
     const [f1, f2] = colors[moduleId] || [440, 550]
     this._tone(f1, 0.08, 'triangle', 0.07); setTimeout(() => this._tone(f2, 0.1, 'sine', 0.06), 60)
   }

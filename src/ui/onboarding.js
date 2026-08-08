@@ -64,7 +64,7 @@ export class Onboarding {
     } else if (this._step === 1) {
       body.innerHTML = `
         <div class="onboarding-icon">&#127918;</div>
-        <h3>六大魔法模块</h3>
+        <h3>三大魔法模块</h3>
         <p><kbd>1</kbd> <b>粒子魔法</b> — 手势控制3D粒子雕塑</p>
         <p><kbd>2</kbd> <b>魔法滤镜</b> — 双手成为AR滤镜区</p>
         <p><kbd>3</kbd> <b>我的画展</b> — 名画变成粒子立体画</p>`
@@ -72,9 +72,9 @@ export class Onboarding {
     } else if (this._step === 2) {
       body.innerHTML = `
         <div class="onboarding-icon">&#128293;</div>
-        <h3>还有三个全新玩法</h3>
-        <p><kbd>4</kbd> <b>手撕现实</b> — 捏合手指撕开屏幕，里面是另一个世界</p>
-        <p><kbd>5</kbd> <b>光之轨迹</b> — 指尖划过留下彩色光痕</p>
+        <h3>还有两个全新玩法</h3>
+        <p><kbd>4</kbd> <b>光之轨迹</b> — 指尖划过留下彩色光痕</p>
+        <p><kbd>5</kbd> <b>暗影剧场</b> — 身体是现实之窗，周围是暗影</p>
         <p><kbd>6</kbd> <b>暗影剧场</b> — 身体是现实之窗，周围是暗影</p>`
       nextBtn.textContent = '下一步'
     } else {
@@ -83,7 +83,7 @@ export class Onboarding {
         <h3>准备好了吗？</h3>
         <p>点击<b>演示模式</b>可以不需摄像头直接体验</p>
         <p>按 <kbd>?</kbd> 随时查看帮助</p>
-        <p>按数字键 <kbd>1</kbd>-<kbd>6</kbd> 快速切换模块</p>`
+        <p>按数字键 <kbd>1</kbd>-<kbd>5</kbd> 快速切换模块</p>`
       nextBtn.textContent = '开始探索'
     }
   }

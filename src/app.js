@@ -3,7 +3,6 @@ import { Pipeline } from './core/pipeline.js'
 import { ParticleModule } from './modules/particles/particleModule.js'
 import { PaintingModule } from './modules/paintings/paintingModule.js'
 import { FilterModule } from './modules/filters/filterModule.js'
-import { HandwarpModule } from './modules/handwarp/handwarpModule.js'
 import { LightTrailsModule } from './modules/lighttrails/lightTrailsModule.js'
 import { ShadowPlayModule } from './modules/shadowplay/shadowPlayModule.js'
 import { StatusDisplay } from './ui/status.js'
@@ -47,7 +46,6 @@ let sharedRenderer = null
 let pipeline = null
 let particleModule = null
 let filterModule = null
-let handwarpModule = null
 let lighttrailsModule = null
 let shadowplayModule = null
 let paintingModule = null
@@ -59,7 +57,7 @@ let onboarding = null
 let challengeMode = null
 let cameraActive = false
 let demoActive = false
-let moduleInitialized = { particles: false, filters: false, paintings: false, handwarp: false, lighttrails: false, shadowplay: false }
+let moduleInitialized = { particles: false, filters: false, paintings: false, lighttrails: false, shadowplay: false }
 let animationId = 0
 let lastTime = 0
 
@@ -200,13 +198,6 @@ async function _initFilterModule() {
   moduleInitialized.filters = true
 }
 
-function _initHandwarpModule() {
-  if (handwarpModule) return
-  handwarpModule = new HandwarpModule(cameraCanvas, videoEl)
-  handwarpModule.init()
-  moduleInitialized.handwarp = true
-}
-
 function _initLighttrailsModule() {
   if (lighttrailsModule) return
   lighttrailsModule = new LightTrailsModule(cameraCanvas, videoEl)
@@ -235,9 +226,6 @@ function _startRenderLoop() {
     // Demo mode rendering
     if (currentModule === 'filters' && filterModule && demoActive && !cameraActive) {
       filterModule.renderDemo(dt)
-    }
-    if (currentModule === 'handwarp' && handwarpModule && demoActive && !cameraActive) {
-      handwarpModule.renderDemo(dt)
     }
     if (currentModule === 'lighttrails' && lighttrailsModule && demoActive && !cameraActive) {
       lighttrailsModule.renderDemo(dt)
@@ -368,9 +356,6 @@ function _subscribePipeline() {
     if (currentModule === 'filters' && filterModule && !demoActive) {
       if (do2D) filterModule.render(frameData, 0.033)
     }
-    if (currentModule === 'handwarp' && handwarpModule && !demoActive) {
-      if (do2D) handwarpModule.render(frameData, 0.033)
-    }
     if (currentModule === 'lighttrails' && lighttrailsModule && !demoActive) {
       if (do2D) lighttrailsModule.render(frameData, 0.033)
     }
@@ -475,7 +460,6 @@ async function switchModule(moduleId) {
     moduleInitialized.paintings = false
   }
   if (currentModule === 'filters') { filterModule?.dispose(); moduleInitialized.filters = false }
-  if (currentModule === 'handwarp') { handwarpModule?.dispose(); handwarpModule = null; moduleInitialized.handwarp = false }
   if (currentModule === 'lighttrails') { lighttrailsModule?.dispose(); lighttrailsModule = null; moduleInitialized.lighttrails = false }
   if (currentModule === 'shadowplay') { shadowplayModule?.dispose(); shadowplayModule = null; moduleInitialized.shadowplay = false }
 
@@ -516,12 +500,6 @@ async function switchModule(moduleId) {
       }
       _renderModuleControls('paintings')
       _showParamPanel('paintings')
-      statusDisplay.setStatus('就绪')
-    } else if (moduleId === 'handwarp') {
-      cameraCanvas.classList.remove('hidden')
-      _initHandwarpModule()
-      _renderModuleControls('handwarp')
-      _showParamPanel('handwarp')
       statusDisplay.setStatus('就绪')
     } else if (moduleId === 'lighttrails') {
       cameraCanvas.classList.remove('hidden')
@@ -632,8 +610,6 @@ function toggleDemo() {
     } else if (currentModule === 'filters' && filterModule) {
       filterModule.demoMode = true
       statusDisplay.setHandStatus(2, '演示')
-    } else if (currentModule === 'handwarp' && handwarpModule) {
-      statusDisplay.setHandStatus(2, '演示')
     } else if (currentModule === 'lighttrails' && lighttrailsModule) {
       statusDisplay.setHandStatus(2, '演示')
     } else if (currentModule === 'shadowplay' && shadowplayModule) {
@@ -665,9 +641,6 @@ function reset() {
   } else if (currentModule === 'filters' && filterModule) {
     filterModule.resetFilterParams()
     _showParamPanel('filters')
-  } else if (currentModule === 'handwarp' && handwarpModule) {
-    handwarpModule.reset()
-    _showParamPanel('handwarp')
   } else if (currentModule === 'lighttrails' && lighttrailsModule) {
     lighttrailsModule.reset()
     _showParamPanel('lighttrails')
@@ -681,7 +654,7 @@ function reset() {
 function _renderModuleControls(moduleId) {
   const renderers = {
     particles: _renderPresetGallery, filters: _renderFilterSelector, paintings: _renderPaintingSelector,
-    handwarp: _renderWarpSelector, lighttrails: _renderLighttrailsSelector, shadowplay: _renderShadowplaySelector,
+    lighttrails: _renderLighttrailsSelector, shadowplay: _renderShadowplaySelector,
   }
   renderers[moduleId]?.()
 }
@@ -859,35 +832,6 @@ function _renderPaintingSelector() {
   })
 }
 
-function _renderWarpSelector() {
-  const warpSelector = document.getElementById('warp-selector')
-  if (!warpSelector) return
-  warpSelector.classList.remove('hidden')
-  const worlds = handwarpModule?.getAllWorlds() || []
-  const current = handwarpModule?.getCurrentWorld()
-  const idx = worlds.findIndex(w => w.id === current?.id)
-  let html = '<button class="selector-arrow" id="warp-prev">◀</button>'
-  html += `<span class="selector-name">${current?.name || ''}</span>`
-  html += '<button class="selector-arrow" id="warp-next">▶</button>'
-  html += '<div class="selector-dots">'
-  worlds.forEach((w, i) => { html += `<span class="selector-dot${i === idx ? ' active' : ''}" data-warp="${i}" title="${w.name}"></span>` })
-  html += '</div>'
-  warpSelector.innerHTML = html
-
-  document.getElementById('warp-prev')?.addEventListener('click', () => {
-    handwarpModule?.prevWorld(); _renderWarpSelector(); audioManager?.presetSwitch()
-  })
-  document.getElementById('warp-next')?.addEventListener('click', () => {
-    handwarpModule?.nextWorld(); _renderWarpSelector(); audioManager?.presetSwitch()
-  })
-  warpSelector.querySelectorAll('.selector-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      handwarpModule?.selectWorld(parseInt(dot.dataset.warp)); _renderWarpSelector()
-      audioManager?.presetSwitch()
-    })
-  })
-}
-
 function _renderLighttrailsSelector() {
   const gallery = document.getElementById('trail-selector')
   if (!gallery) return
@@ -955,11 +899,6 @@ function _showParamPanel(moduleId) {
       if (key === 'sampleDensity') await paintingModule?.setSampleDensity(val)
       else paintingModule?.setParams({ [key]: val })
     })
-  } else if (moduleId === 'handwarp') {
-    paramPanel.setModule('handwarp', flattenSceneSchema('handwarp'), handwarpModule?.params || {}, (key, val) => {
-      if (handwarpModule?.params) handwarpModule.params[key] = val
-      handwarpModule?.setParams({ [key]: val })
-    })
   } else if (moduleId === 'lighttrails') {
     paramPanel.setModule('lighttrails', flattenSceneSchema('lighttrails'), lighttrailsModule?.params || {}, (key, val) => {
       if (lighttrailsModule?.params) lighttrailsModule.params[key] = val
@@ -1006,8 +945,6 @@ function _captureProjectState() {
     state.scene = { module: 'filters', filterId: filterModule.currentFilterId, params: { ...filterModule.filterParams }, common: { gestureSensitivity: filterModule.filterParams.gestureSensitivity ?? 1, backgroundMix: filterModule.filterParams.backgroundMix ?? 0, edgeStrength: filterModule.filterParams.edgeStrength ?? 0.2 } }
   } else if (currentModule === 'paintings' && paintingModule) {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
-  } else if (currentModule === 'handwarp' && handwarpModule) {
-    state.scene = { module: 'handwarp', worldIdx: handwarpModule._worldIdx, params: { ...handwarpModule.params }, vertices: handwarpModule._tearVertices?.map(v => ({ x: v.x, y: v.y })) }
   } else if (currentModule === 'lighttrails' && lighttrailsModule) {
     state.scene = { module: 'lighttrails', presetIdx: lighttrailsModule._presetIdx, params: { ...lighttrailsModule.params } }
   } else if (currentModule === 'shadowplay' && shadowplayModule) {
@@ -1053,11 +990,6 @@ function _restoreProject(project) {
       paintingModule.setParams(scene.params || {})
       _renderModuleControls('paintings'); _showParamPanel('paintings')
     })
-  } else if (scene.module === 'handwarp' && handwarpModule) {
-    handwarpModule.selectWorld(scene.worldIdx ?? 0)
-    handwarpModule.setParams(scene.params || {})
-    if (scene.vertices?.length) handwarpModule._tearVertices = scene.vertices
-    _renderWarpSelector(); _showParamPanel('handwarp')
   } else if (scene.module === 'lighttrails' && lighttrailsModule) {
     lighttrailsModule.selectPreset(scene.presetIdx ?? 0)
     lighttrailsModule.setParams(scene.params || {})
@@ -1078,7 +1010,7 @@ function _renderProjectList() {
   const list = document.getElementById('project-list')
   if (!list || !projectStore) return
   const projects = projectStore.list()
-  const LABELS = { particles: '粒子魔法', filters: '魔法滤镜', paintings: '我的画展', handwarp: '手撕现实', lighttrails: '光之轨迹', shadowplay: '暗影剧场' }
+  const LABELS = { particles: '粒子魔法', filters: '魔法滤镜', paintings: '我的画展', lighttrails: '光之轨迹', shadowplay: '暗影剧场' }
   const moduleLabel = project => LABELS[project.module] || project.module || '未知模块'
   list.innerHTML = projects.length ? projects.map(project => `<button class="project-item" data-project-id="${project.id}"><strong>${_escapeHtml(project.title)}</strong><small>${_escapeHtml(moduleLabel(project))}</small></button>`).join('') : '<div class="project-empty">还没有作品，先创造一个吧</div>'
   list.querySelectorAll('.project-item').forEach(item => item.addEventListener('click', () => _restoreProject(projectStore.get(item.dataset.projectId))))
@@ -1232,7 +1164,6 @@ function _updateHints(moduleId) {
     particles: '挥手扰动粒子 | ←→ 切换样式 | D 演示 | C 摄像头 | S 截图 | M 静音 | ? 指南',
     filters: '双手入镜成滤镜区 单手全屏 | ←→ 切换滤镜 | R 随机魔法 | D 演示 | C 摄像头 | S 截图',
     paintings: '移动手旋转画面 | ←→ 切换画作 | U 上传图片 | D 演示 | S 截图 | F 全屏',
-    handwarp: '手撕画面 | ←→ 切换效果 | D 演示 | C 摄像头 | S 截图 | 捏合撕裂',
     lighttrails: '指尖画光痕 | ←→ 切换画笔 | D 演示 | C 摄像头 | S 截图',
     shadowplay: '身体是窗口 | ←→ 切换世界 | D 演示 | C 摄像头 | S 截图',
   }
@@ -1314,14 +1245,12 @@ function _bindEvents() {
       case '1': switchModule('particles'); break
       case '2': switchModule('filters'); break
       case '3': switchModule('paintings'); break
-      case '4': switchModule('handwarp'); break
-      case '5': switchModule('lighttrails'); break
+      case '4': switchModule('lighttrails'); break
       case '6': switchModule('shadowplay'); break
       case 'ArrowLeft':
         if (currentModule === 'particles') { particleModule?.prevPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.prevFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.prevPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
-        else if (currentModule === 'handwarp') { handwarpModule?.prevWorld(); _renderWarpSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'lighttrails') { lighttrailsModule?.prevPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'shadowplay') { shadowplayModule?.prevWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break
@@ -1329,7 +1258,6 @@ function _bindEvents() {
         if (currentModule === 'particles') { particleModule?.nextPreset(); _renderModuleControls('particles'); _showParamPanel('particles'); audioManager?.presetSwitch() }
         else if (currentModule === 'filters') { filterModule?.nextFilter(); _renderModuleControls('filters'); _showParamPanel('filters'); audioManager?.filterSwitch() }
         else if (currentModule === 'paintings') { paintingModule?.nextPainting().then(() => { _renderModuleControls('paintings'); _showParamPanel('paintings'); audioManager?.presetSwitch() }) }
-        else if (currentModule === 'handwarp') { handwarpModule?.nextWorld(); _renderWarpSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'lighttrails') { lighttrailsModule?.nextPreset(); _renderLighttrailsSelector(); audioManager?.presetSwitch() }
         else if (currentModule === 'shadowplay') { shadowplayModule?.nextWorld(); _renderShadowplaySelector(); audioManager?.presetSwitch() }
         break

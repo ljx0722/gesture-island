@@ -73,14 +73,6 @@ export const SCENE_PARAM_SCHEMA = {
       sampleDensity: { label: '画面细腻度', min: 1, max: 8, step: 1, default: 3, applyMode: 'rebuild' },
     },
   },
-  handwarp: {
-    basic: {
-      grabRadius: { label: '抓取范围', min: 0.04, max: 0.25, step: 0.01, default: 0.12 },
-      edgeGlow: { label: '裂口辉光', min: 0, max: 1, step: 0.05, default: 0.7 },
-      particleSpeed: { label: '粒子速度', min: 0.05, max: 1, step: 0.05, default: 0.3 },
-      worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
-    },
-  },
   lighttrails: {
     basic: {
       trailWidth: { label: '画笔粗细', min: 2, max: 20, step: 1, default: 8 },
