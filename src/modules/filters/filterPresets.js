@@ -169,6 +169,53 @@ export const FILTER_PRESETS = [
       dripAmount: { label: '滴落效果', min: 0, max: 1, step: 0.01, default: 0.4 },
     }
   },
+  {
+    id: 'toon-shader', name: '卡通渲染', category: '艺术',
+    params: {
+      intensity:     { label: '强度', min: 0, max: 1, step: 0.01, default: 0.85 },
+      posterLevels:  { label: '色阶数', min: 2, max: 8, step: 1, default: 5 },
+      edgeStrength:  { label: '描边粗细', min: 0.1, max: 1, step: 0.05, default: 0.3 },
+    }
+  },
+  {
+    id: 'film-noir', name: '黑色电影', category: '复古',
+    params: {
+      intensity:        { label: '强度', min: 0, max: 1, step: 0.01, default: 0.9 },
+      contrast:         { label: '对比度', min: 1, max: 4, step: 0.1, default: 2 },
+      grainAmount:      { label: '颗粒感', min: 0, max: 1, step: 0.05, default: 0.6 },
+      vignetteStrength: { label: '暗角', min: 0, max: 1, step: 0.05, default: 0.7 },
+    }
+  },
+  {
+    id: 'mosaic', name: '马赛克', category: '科技',
+    params: {
+      intensity:  { label: '强度', min: 0, max: 1, step: 0.01, default: 0.9 },
+      blockSize:  { label: '块大小', min: 4, max: 40, step: 2, default: 16 },
+      colorShift: { label: '色彩偏移', min: 0.2, max: 1, step: 0.05, default: 0.6 },
+    }
+  },
+  {
+    id: 'emboss', name: '浮雕', category: '艺术',
+    params: {
+      intensity:    { label: '强度', min: 0, max: 1, step: 0.01, default: 0.8 },
+      reliefDepth:  { label: '浮雕深度', min: 0.5, max: 3, step: 0.1, default: 1.5 },
+    }
+  },
+  {
+    id: 'dream-glow', name: '梦幻柔光', category: '色彩',
+    params: {
+      intensity:  { label: '强度', min: 0, max: 1, step: 0.01, default: 0.7 },
+      glowAmount: { label: '光晕', min: 0, max: 1, step: 0.05, default: 0.5 },
+      softness:   { label: '柔化', min: 0, max: 1, step: 0.05, default: 0.4 },
+    }
+  },
+  {
+    id: 'vibrance', name: '鲜艳增强', category: '色彩',
+    params: {
+      intensity:     { label: '强度', min: 0, max: 1, step: 0.01, default: 0.8 },
+      vibranceBoost: { label: '鲜艳度', min: 0.2, max: 1.5, step: 0.05, default: 0.6 },
+    }
+  },
 ]
 
 export function getFilterById(id) {

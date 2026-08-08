@@ -174,6 +174,94 @@ export function applyCandyPaint(r, g, b, x, y, maskAlpha, p, t) {
   return { r:clampByte(lerp(r,hr+drips,p.intensity||0.8)), g:clampByte(lerp(g,hg+drips,p.intensity||0.8)), b:clampByte(lerp(b,hb+drips,p.intensity||0.8)) }
 }
 
+// ── New filters inspired by finger-frame-effect ──
+
+export function applyToonShader(r, g, b, x, y, maskAlpha, p, t) {
+  const levels = p.posterLevels || 5
+  const step = 256 / levels
+  const pr = Math.round(r / step) * step, pg = Math.round(g / step) * step, pb = Math.round(b / step) * step
+  const edge = p.edgeStrength || 0.3
+  let gray = 0.299 * r + 0.587 * g + 0.114 * b
+  const gx = (noise2d(x + 1, y) - noise2d(x - 1, y)) * 80
+  const gy = (noise2d(x, y + 1) - noise2d(x, y - 1)) * 80
+  let gval = Math.sqrt(gx * gx + gy * gy) / 150
+  const outline = gval > (0.15 / (edge + 0.01)) ? 0 : 1
+  return {
+    r: clampByte(lerp(r, pr * outline + (1 - outline) * 20, p.intensity || 0.85)),
+    g: clampByte(lerp(g, pg * outline + (1 - outline) * 20, p.intensity || 0.85)),
+    b: clampByte(lerp(b, pb * outline + (1 - outline) * 20, p.intensity || 0.85)),
+  }
+}
+
+export function applyFilmNoir(r, g, b, x, y, maskAlpha, p, t) {
+  let gray = 0.299 * r + 0.587 * g + 0.114 * b
+  gray = ((gray - 128) * (p.contrast || 2) + 128)
+  gray = clampByte(gray)
+  const grain = (noise2d(x * 2, y * 2, Math.floor(t * 15)) - 0.5) * 30 * (p.grainAmount || 0.6)
+  const vig = 1 - Math.sqrt((x % 400 - 200) ** 2 + (y % 400 - 200) ** 2) / 280
+  const vignette = Math.max(0, Math.min(1, vig * (p.vignetteStrength || 0.7))) * 0.5 + 0.5
+  return {
+    r: clampByte(lerp(r, (gray + grain) * vignette, p.intensity || 0.9)),
+    g: clampByte(lerp(g, (gray - 2 + grain) * vignette, p.intensity || 0.9)),
+    b: clampByte(lerp(b, (gray - 5 + grain) * vignette, p.intensity || 0.9)),
+  }
+}
+
+export function applyMosaic(r, g, b, x, y, maskAlpha, p, t) {
+  const bs = Math.max(4, p.blockSize || 16)
+  const bx = Math.floor(x / bs) * bs, by = Math.floor(y / bs) * bs
+  const shift = Math.max(0.5, p.colorShift || 0.6)
+  const steps = Math.round(256 / (4 + (1 - shift) * 12))
+  const sr = Math.round((r + (bx % 13 - 6)) / steps) * steps
+  const sg = Math.round((g + (by % 11 - 5)) / steps) * steps
+  const sb = Math.round((b + ((bx + by) % 17 - 8)) / steps) * steps
+  return {
+    r: clampByte(lerp(r, sr, p.intensity || 0.9)),
+    g: clampByte(lerp(g, sg, p.intensity || 0.9)),
+    b: clampByte(lerp(b, sb, p.intensity || 0.9)),
+  }
+}
+
+export function applyEmboss(r, g, b, x, y, maskAlpha, p, t) {
+  let gray = 0.299 * r + 0.587 * g + 0.114 * b
+  const gx = (noise2d(x + 1, y) - noise2d(x - 1, y)) * 40
+  const gy = (noise2d(x, y + 1) - noise2d(x, y - 1)) * 40
+  const relief = (Math.abs(gx) + Math.abs(gy)) * (p.reliefDepth || 1.5)
+  gray = clampByte(gray + relief - 128 * (p.reliefDepth || 1.5) + 128)
+  return {
+    r: clampByte(lerp(r, gray + 15, p.intensity || 0.8)),
+    g: clampByte(lerp(g, gray + 5, p.intensity || 0.8)),
+    b: clampByte(lerp(b, gray - 10, p.intensity || 0.8)),
+  }
+}
+
+export function applyDreamGlow(r, g, b, x, y, maskAlpha, p, t) {
+  const glow = p.glowAmount || 0.5
+  const soft = p.softness || 0.4
+  const avg = (r + g + b) / 3
+  const wr = avg + (r - avg) * (1 - soft) + 60 * glow * Math.sin(x * 0.03 + t * 2) * Math.cos(y * 0.03 + t)
+  const wg = avg + (g - avg) * (1 - soft) + 50 * glow * Math.sin(y * 0.03 + t * 1.5) * Math.cos(x * 0.03 + t)
+  const wb = avg + (b - avg) * (1 - soft) + 70 * glow * Math.sin((x + y) * 0.03 + t * 1.8) * Math.cos(x * 0.03 + t)
+  return {
+    r: clampByte(lerp(r, wr, p.intensity || 0.7)),
+    g: clampByte(lerp(g, wg, p.intensity || 0.7)),
+    b: clampByte(lerp(b, wb, p.intensity || 0.7)),
+  }
+}
+
+export function applyVibrance(r, g, b, x, y, maskAlpha, p, t) {
+  const avg = (r + g + b) / 3
+  const maxChan = Math.max(r, g, b)
+  const saturation = maxChan > 0 ? (maxChan - Math.min(r, g, b)) / maxChan : 0
+  const boost = (p.vibranceBoost || 0.6) * (1 - saturation)
+  const sr = avg + (r - avg) * (1 + boost), sg = avg + (g - avg) * (1 + boost), sb = avg + (b - avg) * (1 + boost)
+  return {
+    r: clampByte(lerp(r, sr, p.intensity || 0.8)),
+    g: clampByte(lerp(g, sg, p.intensity || 0.8)),
+    b: clampByte(lerp(b, sb, p.intensity || 0.8)),
+  }
+}
+
 export const FILTER_APPLIERS = {
   'vintage-halftone': applyVintageHalftone, 'cool-blue': applyCoolBlue, 'vintage-green': applyVintageGreen,
   'warm-sepia': applyWarmSepia, 'neon-cyberpunk': applyNeonCyberpunk, 'bw-silver': applyBWSilver,
@@ -182,4 +270,7 @@ export const FILTER_APPLIERS = {
   'rainbow-holo': applyRainbowHolo, 'negative-invert': applyNegativeInvert, 'glitch-art': applyGlitchArt,
   'custom-magic': applyCustomMagic,
   'kaleidoscope': applyKaleidoscope, 'candy-paint': applyCandyPaint,
+  'toon-shader': applyToonShader, 'film-noir': applyFilmNoir,
+  'mosaic': applyMosaic, 'emboss': applyEmboss,
+  'dream-glow': applyDreamGlow, 'vibrance': applyVibrance,
 }
