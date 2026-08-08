@@ -197,7 +197,7 @@ export class LightTrailsModule {
         const pt = hand.landmarks[fi]
         if (!pt) continue
         tips.push({
-          x: 1 - pt.x, // mirror for camera display
+          x: pt.x,
           y: pt.y,
           finger: fi,
           handId: id,

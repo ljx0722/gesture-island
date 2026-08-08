@@ -127,11 +127,38 @@ async function init() {
   _updateHints('particles')
   _startGestureDemo()
   _showParamPanel('particles')
+  _startCameraPromptLoop()
   const soundTheme = document.getElementById('sound-theme')
   if (soundTheme) soundTheme.value = audioManager.getTheme()
   const muteButton = document.getElementById('btn-mute')
   if (muteButton) muteButton.textContent = audioManager.isMuted() ? '静音' : '声音'
   _renderProjectList()
+}
+
+function _startCameraPromptLoop() {
+  const promptEl = document.getElementById('camera-prompt')
+  const promptBtn = document.getElementById('camera-prompt-btn')
+  if (!promptEl || !promptBtn) return
+
+  promptBtn.addEventListener('click', () => {
+    if (!cameraActive) btnCamera.click()
+  })
+
+  const show = () => {
+    if (cameraActive) return
+    promptEl.classList.remove('hidden')
+    promptEl.style.opacity = '1'
+  }
+  const hide = () => {
+    promptEl.style.opacity = '0'
+    setTimeout(() => promptEl.classList.add('hidden'), 400)
+  }
+  window._hideCameraPrompt = hide
+  window._showCameraPrompt = show
+
+  // Show after 2.5s, repeat every 25s if camera still off
+  setTimeout(() => show(), 2500)
+  setInterval(() => { if (!cameraActive) show() }, 25000)
 }
 
 function resizeCanvas() {
@@ -565,6 +592,7 @@ async function _startCamera() {
     paramPanel.show()
     statusDisplay.hideLoading()
     statusDisplay.showToast('摄像头已启动，请将双手放入画面', 'info', 2500)
+    window._hideCameraPrompt?.()
   } catch (e) {
     statusDisplay.hideLoading()
     console.error('Camera start error:', e)

@@ -298,9 +298,14 @@ export class HandwarpModule {
     if (this.demoMode) return this._demoPinchHands()
     const hands = []
     for (const id of ['left', 'right']) {
-      const h = frameData[id + 'Hand'] || frameData.hands?.[id]
-      if (!h?.palmCenter || !frameData.isPinching) continue
-      hands.push({ id, x: 1 - h.palmCenter.x, y: h.palmCenter.y })
+      const hand = frameData[id + 'Hand'] || frameData.hands?.[id]
+      if (!hand?.landmarks || !hand.landmarks[4] || !hand.landmarks[8]) continue
+      const thumb = hand.landmarks[4], index = hand.landmarks[8]
+      const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y, (thumb.z || 0) - (index.z || 0))
+      const palmW = Math.hypot(hand.landmarks[5].x - hand.landmarks[17].x, hand.landmarks[5].y - hand.landmarks[17].y) || 0.1
+      if (pinchDist < palmW * 0.35) {
+        hands.push({ id, x: 1 - hand.palmCenter.x, y: hand.palmCenter.y })
+      }
     }
     return hands
   }
