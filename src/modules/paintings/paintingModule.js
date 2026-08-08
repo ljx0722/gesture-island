@@ -87,6 +87,7 @@ export class PaintingModule {
     })
     this.group.add(this.paintingParticles.points)
     this.scene.background = new window.THREE.Color(cfg.bgColor || '#0a0a1a')
+    this.paintingParticles.updateParams(this.params)
   }
 
   async uploadPainting(file) {

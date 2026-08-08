@@ -75,7 +75,7 @@ export class ParticleModel {
   constructor(geometry, options = {}) {
     const T = THREE()
     this._T = T
-    this.pointScale = options.pointScale ?? 1.6
+    this.pointScale = options.pointScale ?? 1.8
     this.scatterDist = options.scatterDist ?? 1.5
     this.noiseAmp = options.noiseAmp ?? 0.6
     this.color = new T.Color(options.color ?? '#6c8cff')
@@ -84,6 +84,7 @@ export class ParticleModel {
     this.points = null
     this.material = null
     this._build(geometry)
+    this.updateParams(options)
   }
 
   _build(geometry) {

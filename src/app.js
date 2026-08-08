@@ -441,9 +441,9 @@ async function switchModule(moduleId) {
     moduleInitialized.paintings = false
   }
   if (currentModule === 'filters') { filterModule?.dispose(); moduleInitialized.filters = false }
-  if (currentModule === 'handwarp') { handwarpModule?.dispose(); moduleInitialized.handwarp = false }
-  if (currentModule === 'lighttrails') { lighttrailsModule?.dispose(); moduleInitialized.lighttrails = false }
-  if (currentModule === 'shadowplay') { shadowplayModule?.dispose(); moduleInitialized.shadowplay = false }
+  if (currentModule === 'handwarp') { handwarpModule?.dispose(); handwarpModule = null; moduleInitialized.handwarp = false }
+  if (currentModule === 'lighttrails') { lighttrailsModule?.dispose(); lighttrailsModule = null; moduleInitialized.lighttrails = false }
+  if (currentModule === 'shadowplay') { shadowplayModule?.dispose(); shadowplayModule = null; moduleInitialized.shadowplay = false }
 
   threeCanvas.classList.add('hidden')
   cameraCanvas.classList.add('hidden')
@@ -498,6 +498,13 @@ async function switchModule(moduleId) {
     } else if (moduleId === 'shadowplay') {
       cameraCanvas.classList.remove('hidden')
       pipeline.setNeedsMask(true)
+      if (cameraActive && !pipeline.maskSegmenter) {
+        statusDisplay.showLoading('正在加载人物分割模型...')
+        await pipeline.initMaskSegmenter({
+          onProgress: ({ stage, progress, text }) => statusDisplay.setLoadingProgress(stage, progress, text),
+        })
+        statusDisplay.hideLoading()
+      }
       _initShadowplayModule()
       _renderModuleControls('shadowplay')
       _showParamPanel('shadowplay')

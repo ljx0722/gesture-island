@@ -71,7 +71,8 @@ export function applyBWSilver(r, g, b, x, y, maskAlpha, p, t) {
 
 export function applyPopArt(r, g, b, x, y, maskAlpha, p, t) {
   const gray = 0.299*r+0.587*g+0.114*b, sr=lerp(gray,r,p.saturation), sg=lerp(gray,g,p.saturation), sb=lerp(gray,b,p.saturation)
-  const dot = Math.sin(x*0.3)*Math.sin(y*0.3)>0?0.15:-0.15
+  const dotSize = (p.dotSize || 5) * 0.06
+  const dot = Math.sin(x * dotSize) * Math.sin(y * dotSize) > 0 ? 0.15 : -0.15
   const outline = (p.outlineThickness||0)*(Math.abs(Math.sin(x*0.04+y*0.04))>0.95?50:0)
   return { r:clampByte(lerp(r,Math.round(sr/64)*64*(1+dot)+outline,p.intensity)), g:clampByte(lerp(g,Math.round(sg/64)*64*(1+dot)+outline,p.intensity)), b:clampByte(lerp(b,Math.round(sb/64)*64*(1+dot)+outline,p.intensity)) }
 }
@@ -93,7 +94,11 @@ export function applyWatercolor(r, g, b, x, y, maskAlpha, p, t) {
 export function applyPixelRetro(r, g, b, x, y, maskAlpha, p, t) {
   const px=Math.floor(x/p.pixelSize)*p.pixelSize, py=Math.floor(y/p.pixelSize)*p.pixelSize
   const lv=Math.pow(2,Math.round(p.colorDepth)), step=256/lv
-  return { r:clampByte(lerp(r,Math.round(r/step)*step,p.intensity)), g:clampByte(lerp(g,Math.round(g/step)*step,p.intensity)), b:clampByte(lerp(b,Math.round(b/step)*step,p.intensity)) }
+  const pattern = p.ditherPattern || 0
+  let noiseOff = 0
+  if (pattern === 1) noiseOff = (noise2d(px, py, 0) - 0.5) * step * 0.4
+  else if (pattern === 2) noiseOff = (Math.sin(px * 0.5) * Math.cos(py * 0.5)) * step * 0.3
+  return { r:clampByte(lerp(r,Math.round((r+noiseOff)/step)*step,p.intensity)), g:clampByte(lerp(g,Math.round((g+noiseOff)/step)*step,p.intensity)), b:clampByte(lerp(b,Math.round((b+noiseOff)/step)*step,p.intensity)) }
 }
 
 export function applyThermal(r, g, b, x, y, maskAlpha, p, t) {
@@ -198,8 +203,10 @@ export function applyFilmNoir(r, g, b, x, y, maskAlpha, p, t) {
   gray = ((gray - 128) * (p.contrast || 2) + 128)
   gray = clampByte(gray)
   const grain = (noise2d(x * 2, y * 2, Math.floor(t * 15)) - 0.5) * 30 * (p.grainAmount || 0.6)
-  const vig = 1 - Math.sqrt((x % 400 - 200) ** 2 + (y % 400 - 200) ** 2) / 280
-  const vignette = Math.max(0, Math.min(1, vig * (p.vignetteStrength || 0.7))) * 0.5 + 0.5
+  const vx = x - cx, vy = y - cy
+  const maxDist = Math.sqrt(cx * cx + cy * cy)
+  const vig = 1 - Math.sqrt(vx * vx + vy * vy) / (maxDist * 0.9)
+  const vignette = clamp(Math.max(0, vig * (p.vignetteStrength || 0.7)) * 0.5 + 0.5, 0, 1)
   return {
     r: clampByte(lerp(r, (gray + grain) * vignette, p.intensity || 0.9)),
     g: clampByte(lerp(g, (gray - 2 + grain) * vignette, p.intensity || 0.9)),

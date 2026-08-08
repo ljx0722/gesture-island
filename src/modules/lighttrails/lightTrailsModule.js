@@ -54,6 +54,10 @@ export class LightTrailsModule {
       baseColor: p.baseColor, glowIntensity: p.glow ? 0.7 : 0,
       gestureColorShift: p.id === 'rainbow' || p.id === 'galaxy',
     })
+    if (this._trailCtx) {
+      const tw = this._trailCanvas.width, th = this._trailCanvas.height
+      this._trailCtx.clearRect(0, 0, tw, th)
+    }
   }
 
   setParams(p) { Object.assign(this.params, p) }

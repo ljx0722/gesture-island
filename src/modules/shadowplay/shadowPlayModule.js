@@ -118,7 +118,7 @@ export class ShadowPlayModule {
           // Gradient points from low mask (outside) to high mask (body).
           // We want to push particles AWAY from the body edge, so push in gradient direction
           const str = this.params.repelStrength * 0.008 * gLen
-          pt.x += gx * str; pt.y += gy * str
+          pt.x -= gx * str; pt.y -= gy * str
         }
       }
 

@@ -104,9 +104,9 @@ export class HandwarpModule {
     const roughness = this.params.edgeRoughness
 
     // Draw tear circles along current pinch positions and paths
-    for (const h of pinchHands) {
-      const key = h.id
-      const cx = h.x * w, cy = h.y * h
+    for (const hand of pinchHands) {
+      const key = hand.id
+      const cx = hand.x * w, cy = hand.y * h
       const prev = this._prevPinchPos[key]
 
       // Draw jagged tear blob at current position
@@ -170,9 +170,9 @@ export class HandwarpModule {
     }
     this._lastGesture = gesture
 
-    for (const h of pinchHands) {
-      const key = h.id
-      const cx = h.x * w, cy = h.y * h
+    for (const hand of pinchHands) {
+      const key = hand.id
+      const cx = hand.x * w, cy = hand.y * h
       const prev = this._prevPinchStates?.[key]
       const s = burst ? tearSize * 3 : tearSize
 
@@ -195,8 +195,8 @@ export class HandwarpModule {
     for (const k of Object.keys(this._prevPinchStates)) {
       if (!activePinchKeys.has(k)) delete this._prevPinchStates[k]
     }
-    for (const h of pinchHands) {
-      this._prevPinchStates[h.id] = { x: h.x * w, y: h.y * h }
+    for (const hand of pinchHands) {
+      this._prevPinchStates[hand.id] = { x: hand.x * w, y: hand.y * h }
     }
 
     tearCtx.globalCompositeOperation = 'source-over'
@@ -212,7 +212,7 @@ export class HandwarpModule {
       if (pt.x < 0) pt.x = 1; if (pt.x > 1) pt.x = 0
       if (pt.y < 0) pt.y = 1; if (pt.y > 1) pt.y = 0
       pt.phase += dt * 2
-      const alpha = 0.35 + 0.35 * Math.sin(pt.phase)
+      const alpha = (0.35 + 0.35 * Math.sin(pt.phase)) * (this.params.worldBrightness ?? 1)
       wctx.beginPath()
       wctx.arc(pt.x * w, pt.y * h, pt.size, 0, Math.PI * 2)
       wctx.fillStyle = this._hexToRgba(pt.color, alpha)

@@ -72,7 +72,7 @@ export class ParticleModule {
   async init() { this._loadPreset(1) } // Start with "星空" — larger and more visible
 
   _loadPreset(index) {
-    this.currentPresetIdx = Math.min(index, PRESETS.length - 1)
+    this.currentPresetIdx = Math.max(0, Math.min(Math.floor(index), PRESETS.length - 1))
     this._replaceModel(PRESETS[this.currentPresetIdx].generate())
   }
 
@@ -131,8 +131,12 @@ export class ParticleModule {
 
     // Two-hand distance → global particle scale
     if (frameData.twoHandDistance > 0) {
+      if (!this._origPointScale) this._origPointScale = this.params.pointScale
       const scale = 0.5 + Math.min(frameData.twoHandDistance * 2.5, 2.0)
-      this.particleModel?.updateParams({ pointScale: this.params.pointScale * scale * (this.params.twoHandScale ?? 0.8) })
+      this.particleModel?.updateParams({ pointScale: this._origPointScale * scale * (this.params.twoHandScale ?? 0.8) })
+    } else if (this._origPointScale) {
+      this.particleModel?.updateParams({ pointScale: this._origPointScale })
+      this._origPointScale = null
     }
 
     // Point gesture → repel direction to shader
