@@ -1006,7 +1006,7 @@ function _captureProjectState() {
   } else if (currentModule === 'paintings' && paintingModule) {
     state.scene = { module: 'paintings', paintingIndex: paintingModule._currentIdx, params: { ...paintingModule.params }, customTitle: paintingModule._customPainting?.title || '' }
   } else if (currentModule === 'handwarp' && handwarpModule) {
-    state.scene = { module: 'handwarp', worldIdx: handwarpModule._worldIdx, params: { ...handwarpModule.params } }
+    state.scene = { module: 'handwarp', worldIdx: handwarpModule._worldIdx, params: { ...handwarpModule.params }, vertices: handwarpModule._tearVertices?.map(v => ({ x: v.x, y: v.y })) }
   } else if (currentModule === 'lighttrails' && lighttrailsModule) {
     state.scene = { module: 'lighttrails', presetIdx: lighttrailsModule._presetIdx, params: { ...lighttrailsModule.params } }
   } else if (currentModule === 'shadowplay' && shadowplayModule) {
@@ -1055,6 +1055,7 @@ function _restoreProject(project) {
   } else if (scene.module === 'handwarp' && handwarpModule) {
     handwarpModule.selectWorld(scene.worldIdx ?? 0)
     handwarpModule.setParams(scene.params || {})
+    if (scene.vertices?.length) handwarpModule._tearVertices = scene.vertices
     _renderWarpSelector(); _showParamPanel('handwarp')
   } else if (scene.module === 'lighttrails' && lighttrailsModule) {
     lighttrailsModule.selectPreset(scene.presetIdx ?? 0)

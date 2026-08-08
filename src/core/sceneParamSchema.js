@@ -75,9 +75,7 @@ export const SCENE_PARAM_SCHEMA = {
   },
   handwarp: {
     basic: {
-      tearSize: { label: '撕口大小', min: 12, max: 60, step: 1, default: 32 },
-      healSpeed: { label: '自愈速度', min: 0.3, max: 5, step: 0.1, default: 1.8 },
-      edgeRoughness: { label: '毛刺程度', min: 0, max: 1, step: 0.05, default: 0.6 },
+      grabRadius: { label: '抓取范围', min: 0.04, max: 0.25, step: 0.01, default: 0.12 },
       edgeGlow: { label: '裂口辉光', min: 0, max: 1, step: 0.05, default: 0.7 },
       particleSpeed: { label: '粒子速度', min: 0.05, max: 1, step: 0.05, default: 0.3 },
       worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
