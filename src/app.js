@@ -354,21 +354,28 @@ function _applyMouseOpenness() {
 }
 
 // ── Pipeline subscription ──
+let _last2dFrameTime = 0
 function _subscribePipeline() {
   pipeline.subscribe((frameData) => {
     statusDisplay.setHandStatus(frameData.handCount)
     _handleGesture(frameData)
+
+    // 2D modules throttled to ~30fps to avoid GC pressure from full-frame ImageData
+    const now = performance.now()
+    const do2D = now - _last2dFrameTime >= 33
+    if (do2D) _last2dFrameTime = now
+
     if (currentModule === 'filters' && filterModule && !demoActive) {
-      filterModule.render(frameData, 0.016)
+      if (do2D) filterModule.render(frameData, 0.033)
     }
     if (currentModule === 'handwarp' && handwarpModule && !demoActive) {
-      handwarpModule.render(frameData, 0.016)
+      handwarpModule.render(frameData, 0.033)
     }
     if (currentModule === 'lighttrails' && lighttrailsModule && !demoActive) {
-      lighttrailsModule.render(frameData, 0.016)
+      lighttrailsModule.render(frameData, 0.033)
     }
     if (currentModule === 'shadowplay' && shadowplayModule && !demoActive) {
-      shadowplayModule.render(frameData, 0.016)
+      if (do2D) shadowplayModule.render(frameData, 0.033)
     }
     _renderHandPreview(frameData)
   })

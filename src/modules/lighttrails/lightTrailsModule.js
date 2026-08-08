@@ -1,5 +1,5 @@
 // lightTrailsModule.js — module 5: fingertip light painting on canvas
-const FINGERTIP_INDICES = [4, 8, 12, 16, 20]
+const FINGERTIP_INDICES = [8] // index finger tips only
 const MAX_HISTORY = 60
 
 const PRESETS = [

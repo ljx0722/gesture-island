@@ -50,6 +50,11 @@ export class ShadowPlayModule {
     this._worldCanvas = document.createElement('canvas')
     this._worldCtx = this._worldCanvas.getContext('2d')
 
+    // Downscale processing canvas for composite
+    this._downCanvas = document.createElement('canvas')
+    this._downCtx = this._downCanvas.getContext('2d')
+    this._downData = null // pre-allocated ImageData
+
     this._worldIdx = 0
     this._particleGroups = []
     this._initWorld(WORLDS[0])
@@ -92,16 +97,16 @@ export class ShadowPlayModule {
     this._sourceCanvas.width = w; this._sourceCanvas.height = h
     this._worldCanvas.width = w; this._worldCanvas.height = h
 
-    // Gradient background onto world canvas first
+    const wctx = this._worldCtx, dctx = this.displayCtx, world = this.getCurrentWorld()
+    const brightness = this.params.worldBrightness ?? 1
+
+    // Gradient background on world canvas
     const top = hexToRgb(world.topColor), bot = hexToRgb(world.botColor)
     const grad = wctx.createLinearGradient(0, 0, 0, h)
     grad.addColorStop(0, `rgb(${top.r},${top.g},${top.b})`)
     grad.addColorStop(1, `rgb(${bot.r},${bot.g},${bot.b})`)
     wctx.fillStyle = grad
     wctx.fillRect(0, 0, w, h)
-
-    const brightness = this.params.worldBrightness ?? 1
-    const dctx = this.displayCtx, wctx = this._worldCtx, world = this.getCurrentWorld()
 
     // Get mask for repulsion / vortex
     const mask = frameData.mask
@@ -199,14 +204,27 @@ export class ShadowPlayModule {
 
     const sourceData = this._sourceCtx.getImageData(0, 0, w, h)
     const worldData = wctx.getImageData(0, 0, w, h)
-    const output = dctx.createImageData(w, h)
+
+    // Downscale composite for performance: max 480px wide
+    const MAX = 480
+    const scale = Math.min(1, MAX / Math.max(w, h))
+    const dw = Math.max(1, Math.round(w * scale)), dh = Math.max(1, Math.round(h * scale))
+    if (this._downCanvas.width !== dw || this._downCanvas.height !== dh) {
+      this._downCanvas.width = dw; this._downCanvas.height = dh
+      this._downData = null
+    }
+    if (!this._downData) this._downData = this._downCtx.createImageData(dw, dh)
+    const output = this._downData
     const softness = this.params.maskSoftness
     const glowStr = this.params.edgeGlow
     const {r:gr, g:gg, b:gb} = hexToRgb(world.glowColor)
     const breathe = 1 + Math.sin(this.time * 1.5) * world.glowPulse
+    const invScale = 1 / scale
 
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    for (let dy = 0; dy < dh; dy++) {
+      const y = Math.round(dy * invScale)
+      for (let dx = 0; dx < dw; dx++) {
+        const x = Math.round(dx * invScale)
         let maskVal = 0.3
         if (mask && mask.data && mask.width > 0) {
           const mx = clamp(Math.round((x / w) * (mask.width - 1)), 0, mask.width - 1)
@@ -218,16 +236,11 @@ export class ShadowPlayModule {
         const sr = sourceData.data[si], sg = sourceData.data[si + 1], sb = sourceData.data[si + 2]
         const wr = worldData.data[si], wg = worldData.data[si + 1], wb = worldData.data[si + 2]
 
-        // Three-zone blend:
-        // mask>0.7 → full camera (body interior)
-        // 0.3-0.7 → mix camera + world (transition)
-        // <0.3 → full world + particles
         const blend = clamp((maskVal - 0.5) * (softness / 5) + 0.5, 0, 1)
         let r = sr * blend + wr * (1 - blend)
         let g = sg * blend + wg * (1 - blend)
         let b = sb * blend + wb * (1 - blend)
 
-        // Breathing edge glow
         if (glowStr > 0) {
           const edgeDist = Math.abs(maskVal - 0.5)
           if (edgeDist < 0.15) {
@@ -238,11 +251,13 @@ export class ShadowPlayModule {
           }
         }
 
-        output.data[si] = r; output.data[si + 1] = g; output.data[si + 2] = b; output.data[si + 3] = 255
+        const di = (dy * dw + dx) * 4
+        output.data[di] = r; output.data[di + 1] = g; output.data[di + 2] = b; output.data[di + 3] = 255
       }
     }
 
-    dctx.putImageData(output, 0, 0)
+    this._downCtx.putImageData(output, 0, 0)
+    dctx.drawImage(this._downCanvas, 0, 0, dw, dh, 0, 0, w, h)
   }
 
   _generateDemoMask(w, h) {
@@ -266,5 +281,5 @@ export class ShadowPlayModule {
   }
 
   reset() { this._demoTime = 0; this._initWorld(WORLDS[this._worldIdx]) }
-  dispose() { this._sourceCanvas.width = 0; this._worldCanvas.width = 0 }
+  dispose() { this._sourceCanvas.width = 0; this._worldCanvas.width = 0; this._downCanvas.width = 0; this._downData = null }
 }
