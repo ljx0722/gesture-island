@@ -78,8 +78,8 @@ export class LightTrailsModule {
     const dctx = this.displayCtx
     const tctx = this._trailCtx
 
-    // Fade trail layer
-    tctx.globalCompositeOperation = 'source-over'
+    // Fade trail layer (only existing trails, not background)
+    tctx.globalCompositeOperation = 'destination-out'
     tctx.fillStyle = `rgba(0,0,0,${1 - this.params.fade})`
     tctx.fillRect(0, 0, w, h)
 
