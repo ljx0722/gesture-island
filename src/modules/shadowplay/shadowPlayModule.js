@@ -202,9 +202,6 @@ export class ShadowPlayModule {
       this._sourceCtx.fillStyle = '#0a0a0f'; this._sourceCtx.fillRect(0, 0, w, h)
     }
 
-    const sourceData = this._sourceCtx.getImageData(0, 0, w, h)
-    const worldData = wctx.getImageData(0, 0, w, h)
-
     // Downscale composite for performance: max 480px wide
     const MAX = 480
     const scale = Math.min(1, MAX / Math.max(w, h))
@@ -214,6 +211,12 @@ export class ShadowPlayModule {
       this._downData = null
     }
     if (!this._downData) this._downData = this._downCtx.createImageData(dw, dh)
+
+    // Draw source and world at downscaled resolution to avoid full-res getImageData
+    this._downCtx.drawImage(this._sourceCanvas, 0, 0, dw, dh)
+    const sourceData = this._downCtx.getImageData(0, 0, dw, dh)
+    this._downCtx.drawImage(this._worldCanvas, 0, 0, dw, dh)
+    const worldData = this._downCtx.getImageData(0, 0, dw, dh)
     const output = this._downData
     const softness = this.params.maskSoftness
     const glowStr = this.params.edgeGlow
@@ -222,17 +225,17 @@ export class ShadowPlayModule {
     const invScale = 1 / scale
 
     for (let dy = 0; dy < dh; dy++) {
-      const y = Math.round(dy * invScale)
+      const fy = Math.round(dy / scale)
       for (let dx = 0; dx < dw; dx++) {
-        const x = Math.round(dx * invScale)
+        const fx = Math.round(dx / scale)
         let maskVal = 0.3
         if (mask && mask.data && mask.width > 0) {
-          const mx = clamp(Math.round((x / w) * (mask.width - 1)), 0, mask.width - 1)
-          const my = clamp(Math.round((y / h) * (mask.height - 1)), 0, mask.height - 1)
+          const mx = clamp(Math.round((fx / w) * (mask.width - 1)), 0, mask.width - 1)
+          const my = clamp(Math.round((fy / h) * (mask.height - 1)), 0, mask.height - 1)
           maskVal = mask.data[my * mask.width + mx] || 0
         }
 
-        const si = (y * w + x) * 4
+        const si = (dy * dw + dx) * 4
         const sr = sourceData.data[si], sg = sourceData.data[si + 1], sb = sourceData.data[si + 2]
         const wr = worldData.data[si], wg = worldData.data[si + 1], wb = worldData.data[si + 2]
 

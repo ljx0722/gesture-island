@@ -94,7 +94,7 @@ export const SCENE_PARAM_SCHEMA = {
       maskSoftness: { label: '轮廓柔化', min: 2, max: 16, step: 1, default: 6 },
       edgeGlow: { label: '边缘辉光', min: 0, max: 1, step: 0.05, default: 0.4 },
       repelStrength: { label: '粒子推斥', min: 0, max: 1, step: 0.05, default: 0.3 },
-      vortexStrength: { label: '挥手涡旋', min: 0, max: 1, step: 0.05, default: 0.2 },
+      vortexStrength: { label: '挥手涡旋', min: 0, max: 1, step: 0.05, default: 0.3 },
       worldBrightness: { label: '世界亮度', min: 0.3, max: 1.5, step: 0.05, default: 1 },
     },
   },

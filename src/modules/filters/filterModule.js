@@ -446,5 +446,6 @@ export class FilterModule {
     this.maskSegmenter = null
     this._sourceCanvas.width = 0; this._processCanvas.width = 0
     this._downCanvas.width = 0; this._demoCanvas.width = 0
+    this._sourceCtx = null; this._processCtx = null; this._downCtx = null
   }
 }

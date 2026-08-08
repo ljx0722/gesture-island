@@ -203,9 +203,11 @@ export function applyFilmNoir(r, g, b, x, y, maskAlpha, p, t) {
   gray = ((gray - 128) * (p.contrast || 2) + 128)
   gray = clampByte(gray)
   const grain = (noise2d(x * 2, y * 2, Math.floor(t * 15)) - 0.5) * 30 * (p.grainAmount || 0.6)
-  const vx = x - cx, vy = y - cy
-  const maxDist = Math.sqrt(cx * cx + cy * cy)
-  const vig = 1 - Math.sqrt(vx * vx + vy * vy) / (maxDist * 0.9)
+  // Single center vignette: calculate distance from image center
+  const cx_n = 200, cy_n = 200
+  const vx = x - cx_n, vy = y - cy_n
+  const maxDist = Math.sqrt(cx_n * cx_n + cy_n * cy_n)
+  const vig = 1 - Math.sqrt(vx * vx + vy * vy) / (maxDist * 0.85)
   const vignette = clamp(Math.max(0, vig * (p.vignetteStrength || 0.7)) * 0.5 + 0.5, 0, 1)
   return {
     r: clampByte(lerp(r, (gray + grain) * vignette, p.intensity || 0.9)),

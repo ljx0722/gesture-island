@@ -369,10 +369,10 @@ function _subscribePipeline() {
       if (do2D) filterModule.render(frameData, 0.033)
     }
     if (currentModule === 'handwarp' && handwarpModule && !demoActive) {
-      handwarpModule.render(frameData, 0.033)
+      if (do2D) handwarpModule.render(frameData, 0.033)
     }
     if (currentModule === 'lighttrails' && lighttrailsModule && !demoActive) {
-      lighttrailsModule.render(frameData, 0.033)
+      if (do2D) lighttrailsModule.render(frameData, 0.033)
     }
     if (currentModule === 'shadowplay' && shadowplayModule && !demoActive) {
       if (do2D) shadowplayModule.render(frameData, 0.033)
@@ -648,6 +648,7 @@ function toggleDemo() {
     } else if (currentModule === 'filters' && filterModule) {
       filterModule.demoMode = false
     }
+    statusDisplay.setHandStatus(0)
     statusDisplay.setStatus('就绪')
   }
 }

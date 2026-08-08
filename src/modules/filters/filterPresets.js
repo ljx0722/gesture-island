@@ -216,6 +216,16 @@ export const FILTER_PRESETS = [
       vibranceBoost: { label: '鲜艳度', min: 0.2, max: 1.5, step: 0.05, default: 0.6 },
     }
   },
+  {
+    id: 'glitch-art', name: '故障艺术', category: '科技',
+    params: {
+      intensity:   { label: '强度', min: 0, max: 1, step: 0.01, default: 0.8 },
+      glitchChance:{ label: '故障概率', min: 0.1, max: 1, step: 0.05, default: 0.7 },
+      rgbShiftX:   { label: 'RGB偏移X', min: 1, max: 30, step: 1, default: 8 },
+      rgbShiftY:   { label: 'RGB偏移Y', min: 1, max: 20, step: 1, default: 4 },
+      sliceHeight: { label: '切片高度', min: 2, max: 24, step: 2, default: 8 },
+    }
+  },
 ]
 
 export function getFilterById(id) {

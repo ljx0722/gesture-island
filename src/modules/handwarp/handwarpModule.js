@@ -36,6 +36,10 @@ export class HandwarpModule {
     this._maskCanvas = document.createElement('canvas')
     this._maskCtx = this._maskCanvas.getContext('2d')
 
+    // Pre-allocated composite scratch canvas
+    this._compositeCanvas = document.createElement('canvas')
+    this._compositeCtx = this._compositeCanvas.getContext('2d')
+
     // Tear polygon — starts as circle, gets deformed by pinching
     this._initTearVertices()
     this._activePulls = {} // handId -> {vertexIdx}
@@ -182,13 +186,13 @@ export class HandwarpModule {
     }
 
     // 5. Composite: world clipped to tear mask, over camera
-    const tmp = document.createElement('canvas')
-    tmp.width = w; tmp.height = h
-    const tctx = tmp.getContext('2d')
+    this._compositeCanvas.width = w; this._compositeCanvas.height = h
+    const tctx = this._compositeCtx
+    tctx.globalCompositeOperation = 'source-over'
     tctx.drawImage(this._worldCanvas, 0, 0)
     tctx.globalCompositeOperation = 'destination-in'
     tctx.drawImage(this._maskCanvas, 0, 0)
-    ctx.drawImage(tmp, 0, 0)
+    ctx.drawImage(this._compositeCanvas, 0, 0)
 
     // 6. Edge glow
     if (this.params.edgeGlow > 0) {
@@ -237,5 +241,5 @@ export class HandwarpModule {
   }
 
   reset() { this._initTearVertices(); this._activePulls = {}; this._demoTime = 0; this._initWorld(WORLDS[this._worldIdx]) }
-  dispose() { this._maskCanvas.width = 0; this._sourceCanvas.width = 0; this._worldCanvas.width = 0 }
+  dispose() { this._maskCanvas.width = 0; this._sourceCanvas.width = 0; this._worldCanvas.width = 0; this._compositeCanvas.width = 0 }
 }
